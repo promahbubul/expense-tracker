@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Expense Tracker",
+    "slug": "expense-tracker-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "expensetracker",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f6b8d"
+      }
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4000/api"
+    }
+  }
+}
