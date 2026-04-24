@@ -14,9 +14,6 @@
       "adaptiveIcon": {
         "backgroundColor": "#0f6b8d"
       }
-    },
-    "extra": {
-      "apiUrl": "http://localhost:4000/api"
     }
   }
 }
