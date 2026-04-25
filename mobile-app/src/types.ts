@@ -1,12 +1,21 @@
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'UPDATER' | 'HANDLER';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 
 export type AuthUser = {
   sub: string;
   email: string;
   name: string;
-  companyId: string;
-  role: UserRole;
+};
+
+export type AuthResponse = {
+  accessToken: string;
+  user: AuthUser;
+};
+
+export type PasswordResetSession = {
+  success: boolean;
+  resetToken: string;
+  expiresAt: string;
+  message: string;
 };
 
 export type Ref = {

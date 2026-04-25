@@ -1,4 +1,3 @@
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'UPDATER' | 'HANDLER';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 export type TransactionType = 'INCOME' | 'EXPENSE';
 export type LoanDirection = 'LENT' | 'BORROWED';
@@ -15,8 +14,18 @@ export type AuthUser = {
   sub: string;
   email: string;
   name: string;
-  companyId: string;
-  role: UserRole;
+};
+
+export type AuthResponse = {
+  accessToken: string;
+  user: AuthUser;
+};
+
+export type PasswordResetSession = {
+  success: boolean;
+  resetToken: string;
+  expiresAt: string;
+  message: string;
 };
 
 export type Account = {
@@ -60,25 +69,6 @@ export type Loan = {
   amount: number;
   purpose: string;
   loanDate: string;
-};
-
-export type Company = {
-  _id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  details?: string;
-  status: 'ACTIVE' | 'DISABLED';
-};
-
-export type ManagedUser = {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role: UserRole;
-  isActive: boolean;
 };
 
 export type DashboardSummary = {

@@ -60,11 +60,7 @@ export default function AccountsPage() {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>Accounts</h1>
-          <p>Bank accounts, mobile wallets, and hand cash.</p>
-        </div>
+      <div className="pageTools">
         <button
           className="button"
           type="button"

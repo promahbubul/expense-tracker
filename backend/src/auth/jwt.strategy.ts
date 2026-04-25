@@ -5,7 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Model } from 'mongoose';
 import { User } from '../users/user.schema';
-import { JwtUser, normalizeUserRole } from '../common/types';
+import { JwtUser } from '../common/types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -29,8 +29,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sub: user._id.toString(),
       email: user.email,
       name: user.name,
-      companyId: user.companyId.toString(),
-      role: normalizeUserRole(user.role),
     };
   }
 }

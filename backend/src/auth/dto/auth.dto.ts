@@ -14,10 +14,6 @@ export class SignupDto {
 
   @IsOptional()
   @IsString()
-  companyName?: string;
-
-  @IsOptional()
-  @IsString()
   phone?: string;
 }
 
@@ -28,4 +24,22 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password!: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  resetToken!: string;
+
+  @IsString()
+  @MinLength(6)
+  newPassword!: string;
 }

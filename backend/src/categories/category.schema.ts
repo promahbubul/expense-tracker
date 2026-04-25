@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { Company } from '../companies/company.schema';
 import { CategoryType } from '../common/types';
+import { User } from '../users/user.schema';
 
 export type CategoryDocument = HydratedDocument<Category>;
 
@@ -12,15 +12,15 @@ export class Category {
   @Prop({ required: true, trim: true })
   name!: string;
 
-  @Prop({ required: true, enum: CategoryType })
+  @Prop({ type: String, required: true, enum: CategoryType })
   type!: CategoryType;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Company.name, required: true, index: true })
-  companyId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
+  userId!: Types.ObjectId;
 
   @Prop({ default: true })
   isActive!: boolean;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);
-CategorySchema.index({ companyId: 1, type: 1, name: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
+CategorySchema.index({ userId: 1, type: 1, name: 1 }, { unique: true, partialFilterExpression: { isActive: true } });

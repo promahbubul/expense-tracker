@@ -22,12 +22,12 @@ export class DashboardService {
   async summary(user: JwtUser, period: RangePreset = 'today') {
     const range = resolveDateRange(period);
     const [transactionTotals, loanTotals, accountTotals, trend, categoryExpenses, loanPeople] = await Promise.all([
-      this.transactionTotals(user.companyId, range.from, range.to),
-      this.loanTotals(user.companyId, range.from, range.to),
-      this.accountTotals(user.companyId),
-      this.trend(user.companyId, range.from, range.to),
-      this.categoryExpenseTotals(user.companyId, range.from, range.to),
-      this.loanPeopleSummary(user.companyId, range.from, range.to),
+      this.transactionTotals(user.sub, range.from, range.to),
+      this.loanTotals(user.sub, range.from, range.to),
+      this.accountTotals(user.sub),
+      this.trend(user.sub, range.from, range.to),
+      this.categoryExpenseTotals(user.sub, range.from, range.to),
+      this.loanPeopleSummary(user.sub, range.from, range.to),
     ]);
 
     return {
@@ -53,11 +53,11 @@ export class DashboardService {
     };
   }
 
-  private async transactionTotals(companyId: string, from: Date, to: Date) {
+  private async transactionTotals(userId: string, from: Date, to: Date) {
     const rows = await this.transactions.aggregate([
       {
         $match: {
-          companyId: new Types.ObjectId(companyId),
+          userId: new Types.ObjectId(userId),
           transactionDate: { $gte: from, $lte: to },
         },
       },
@@ -70,11 +70,11 @@ export class DashboardService {
     };
   }
 
-  private async loanTotals(companyId: string, from: Date, to: Date) {
+  private async loanTotals(userId: string, from: Date, to: Date) {
     const rows = await this.loans.aggregate([
       {
         $match: {
-          companyId: new Types.ObjectId(companyId),
+          userId: new Types.ObjectId(userId),
           loanDate: { $gte: from, $lte: to },
         },
       },
@@ -87,19 +87,19 @@ export class DashboardService {
     };
   }
 
-  private async accountTotals(companyId: string) {
+  private async accountTotals(userId: string) {
     const rows = await this.accounts.aggregate([
-      { $match: { companyId: new Types.ObjectId(companyId), isActive: true } },
+      { $match: { userId: new Types.ObjectId(userId), isActive: true } },
       { $group: { _id: null, totalBalance: { $sum: '$currentBalance' }, accounts: { $sum: 1 } } },
     ]);
     return rows[0] ?? { totalBalance: 0, accounts: 0 };
   }
 
-  private async trend(companyId: string, from: Date, to: Date) {
+  private async trend(userId: string, from: Date, to: Date) {
     const rows = await this.transactions.aggregate([
       {
         $match: {
-          companyId: new Types.ObjectId(companyId),
+          userId: new Types.ObjectId(userId),
           transactionDate: { $gte: from, $lte: to },
         },
       },
@@ -130,11 +130,11 @@ export class DashboardService {
     return Array.from(byDate.values());
   }
 
-  private async categoryExpenseTotals(companyId: string, from: Date, to: Date) {
+  private async categoryExpenseTotals(userId: string, from: Date, to: Date) {
     const rows = await this.transactions.aggregate([
       {
         $match: {
-          companyId: new Types.ObjectId(companyId),
+          userId: new Types.ObjectId(userId),
           type: TransactionType.EXPENSE,
           transactionDate: { $gte: from, $lte: to },
         },
@@ -143,7 +143,7 @@ export class DashboardService {
       { $sort: { total: -1 } },
     ]);
 
-    const categories = await this.categories.find({ companyId, type: CategoryType.EXPENSE }).lean();
+    const categories = await this.categories.find({ userId, type: CategoryType.EXPENSE }).lean();
     return rows.map((row) => ({
       categoryId: row._id.toString(),
       name: categories.find((category) => category._id.toString() === row._id.toString())?.name ?? 'Uncategorized',
@@ -152,11 +152,11 @@ export class DashboardService {
     }));
   }
 
-  private async loanPeopleSummary(companyId: string, from: Date, to: Date) {
+  private async loanPeopleSummary(userId: string, from: Date, to: Date) {
     const rows = await this.loans.aggregate([
       {
         $match: {
-          companyId: new Types.ObjectId(companyId),
+          userId: new Types.ObjectId(userId),
           loanDate: { $gte: from, $lte: to },
         },
       },
@@ -169,7 +169,7 @@ export class DashboardService {
     ]);
 
     const personIds = rows.map((row) => row._id.personId);
-    const people = await this.loanPeople.find({ _id: { $in: personIds }, companyId }).lean();
+    const people = await this.loanPeople.find({ _id: { $in: personIds }, userId }).lean();
     const grouped = new Map<string, { personId: string; name: string; phone?: string; lent: number; borrowed: number; net: number }>();
 
     for (const row of rows) {

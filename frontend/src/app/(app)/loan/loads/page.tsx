@@ -81,11 +81,7 @@ export default function LoanLoadsPage() {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>Loans</h1>
-          <p>Money borrowed from or lent to loan accounts.</p>
-        </div>
+      <div className="pageTools">
         <button
           className="button"
           type="button"

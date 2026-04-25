@@ -10,7 +10,7 @@ export class AccountsService {
   constructor(@InjectModel(Account.name) private readonly accounts: Model<Account>) {}
 
   list(user: JwtUser) {
-    return this.accounts.find({ companyId: user.companyId, isActive: true }).sort({ createdAt: -1 }).lean();
+    return this.accounts.find({ userId: user.sub, isActive: true }).sort({ createdAt: -1 }).lean();
   }
 
   async create(dto: CreateAccountDto, user: JwtUser) {
@@ -19,14 +19,12 @@ export class AccountsService {
       ...dto,
       initialBalance,
       currentBalance: initialBalance,
-      companyId: user.companyId,
+      userId: user.sub,
     });
   }
 
   async update(id: string, dto: UpdateAccountDto, user: JwtUser) {
-    const account = await this.accounts
-      .findOneAndUpdate({ _id: id, companyId: user.companyId }, dto, { new: true })
-      .lean();
+    const account = await this.accounts.findOneAndUpdate({ _id: id, userId: user.sub }, dto, { new: true }).lean();
     if (!account) {
       throw new NotFoundException('Account not found');
     }
@@ -34,22 +32,22 @@ export class AccountsService {
   }
 
   async remove(id: string, user: JwtUser) {
-    const account = await this.accounts.findOneAndUpdate({ _id: id, companyId: user.companyId }, { isActive: false });
+    const account = await this.accounts.findOneAndUpdate({ _id: id, userId: user.sub }, { isActive: false });
     if (!account) {
       throw new NotFoundException('Account not found');
     }
     return { success: true };
   }
 
-  async adjustBalance(accountId: string, companyId: string, delta: number) {
-    const filter: Record<string, unknown> = { _id: accountId, companyId, isActive: true };
+  async adjustBalance(accountId: string, userId: string, delta: number) {
+    const filter: Record<string, unknown> = { _id: accountId, userId, isActive: true };
     if (delta < 0) {
       filter.currentBalance = { $gte: Math.abs(delta) };
     }
 
     const account = await this.accounts.findOneAndUpdate(filter, { $inc: { currentBalance: delta } }, { new: true });
     if (!account) {
-      const exists = await this.accounts.findOne({ _id: accountId, companyId, isActive: true });
+      const exists = await this.accounts.findOne({ _id: accountId, userId, isActive: true });
       if (!exists) {
         throw new NotFoundException('Account not found');
       }

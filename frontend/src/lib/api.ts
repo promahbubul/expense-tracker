@@ -1,5 +1,7 @@
 'use client';
 
+import type { AuthUser } from './types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
@@ -13,24 +15,25 @@ export function getToken() {
   return window.localStorage.getItem('expense_token');
 }
 
-export function getStoredUser() {
+export function getStoredUser(): AuthUser | null {
   if (typeof window === 'undefined') {
     return null;
   }
+
   const raw = window.localStorage.getItem('expense_user');
   if (!raw) {
     return null;
   }
-  const user = JSON.parse(raw);
-  const legacyRoles: Record<string, string> = {
-    SUPER_USER: 'SUPER_ADMIN',
-    COMPANY_USER: 'ADMIN',
-    NORMAL_USER: 'HANDLER',
-  };
-  return { ...user, role: legacyRoles[user.role] ?? user.role };
+
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    clearSession();
+    return null;
+  }
 }
 
-export function storeSession(accessToken: string, user: unknown) {
+export function storeSession(accessToken: string, user: AuthUser) {
   window.localStorage.setItem('expense_token', accessToken);
   window.localStorage.setItem('expense_user', JSON.stringify(user));
 }
@@ -43,7 +46,11 @@ export function clearSession() {
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -67,6 +74,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (response.status === 204) {
     return undefined as T;
   }
+
   return response.json();
 }
 

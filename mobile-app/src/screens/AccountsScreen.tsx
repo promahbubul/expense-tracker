@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Field, Row, Screen, SectionTitle, Sheet } from '../components/ui';
+import { Button, Card, EmptyState, Field, Row, Screen, ScreenHeader, Sheet } from '../components/ui';
 import { api } from '../services/api';
 import { Account } from '../types';
 import { money } from '../utils/format';
@@ -33,11 +33,14 @@ export function AccountsScreen() {
 
   return (
     <Screen>
+      <ScreenHeader eyebrow="Wallets" title="Accounts" action={<Button label="Add" compact onPress={() => setOpen(true)} />} />
+
       <Card>
-        <SectionTitle title="Accounts" action={<Button label="Add" onPress={() => setOpen(true)} />} />
-        {items.map((item) => (
-          <Row key={item._id} title={item.name} subtitle={item.number} amount={money(item.currentBalance)} />
-        ))}
+        {items.length ? (
+          items.map((item) => <Row key={item._id} title={item.name} subtitle={item.number} amount={money(item.currentBalance)} />)
+        ) : (
+          <EmptyState title="No accounts yet" subtitle="Add a wallet, cash account, or bank account to begin." />
+        )}
       </Card>
       <Sheet visible={open} title="Add Account" onClose={() => setOpen(false)}>
         <Field label="Name" value={name} onChangeText={setName} />

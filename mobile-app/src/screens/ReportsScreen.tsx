@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Screen, SectionTitle, Segmented, Stat } from '../components/ui';
+import { Card, EmptyState, Row, Screen, ScreenHeader, SectionTitle, Segmented, Stat } from '../components/ui';
 import { api } from '../services/api';
 import { ReportStatement } from '../types';
 import { dateLabel, money } from '../utils/format';
@@ -16,6 +16,8 @@ export function ReportsScreen() {
 
   return (
     <Screen>
+      <ScreenHeader eyebrow="Statements" title="Reports" subtitle="A compact view of your recent activity." />
+
       <Segmented
         value={period}
         onChange={setPeriod}
@@ -32,9 +34,13 @@ export function ReportsScreen() {
       </Card>
       <Card>
         <SectionTitle title="Statement" />
-        {(data?.rows ?? []).slice(0, 30).map((item) => (
-          <Row key={item.id} title={item.description} subtitle={`${item.kind} - ${dateLabel(item.date)}`} amount={money(item.amount)} danger={item.kind.includes('expense')} />
-        ))}
+        {(data?.rows ?? []).length ? (
+          (data?.rows ?? []).slice(0, 30).map((item) => (
+            <Row key={item.id} title={item.description} subtitle={`${item.kind} - ${dateLabel(item.date)}`} amount={money(item.amount)} danger={item.kind.includes('expense')} />
+          ))
+        ) : (
+          <EmptyState title="No report rows yet" subtitle="Once you add records, they will appear here." />
+        )}
       </Card>
     </Screen>
   );

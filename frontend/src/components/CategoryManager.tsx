@@ -53,11 +53,7 @@ export function CategoryManager({ type, title }: Props) {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>{title}</h1>
-          <p>Category names used in transactions and reports.</p>
-        </div>
+      <div className="pageTools">
         <button
           className="button"
           type="button"

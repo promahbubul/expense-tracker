@@ -13,9 +13,13 @@ export function StatCard({ label, value, detail, tone = 'neutral', icon: Icon }:
     <article className={`metricCard ${tone}`}>
       <div className="metricTop">
         <span>{label}</span>
-        {Icon ? <Icon size={18} /> : null}
+        {Icon ? (
+          <span className="metricIcon">
+            <Icon size={18} />
+          </span>
+        ) : null}
       </div>
-      <strong>{value}</strong>
+      <strong className="metricValue">{value}</strong>
       {detail ? <p className="muted">{detail}</p> : null}
     </article>
   );

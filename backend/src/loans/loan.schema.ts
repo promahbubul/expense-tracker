@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Account } from '../accounts/account.schema';
-import { Company } from '../companies/company.schema';
 import { LoanDirection } from '../common/types';
+import { User } from '../users/user.schema';
 import { LoanPerson } from './loan-person.schema';
 
 export type LoanDocument = HydratedDocument<Loan>;
@@ -17,7 +17,7 @@ export class Loan {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Account.name, required: true })
   accountId!: Types.ObjectId;
 
-  @Prop({ required: true, enum: LoanDirection })
+  @Prop({ type: String, required: true, enum: LoanDirection })
   direction!: LoanDirection;
 
   @Prop({ type: Number, required: true, min: 0 })
@@ -29,9 +29,9 @@ export class Loan {
   @Prop({ type: Date, required: true })
   loanDate!: Date;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Company.name, required: true, index: true })
-  companyId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
+  userId!: Types.ObjectId;
 }
 
 export const LoanSchema = SchemaFactory.createForClass(Loan);
-LoanSchema.index({ companyId: 1, loanDate: -1 });
+LoanSchema.index({ userId: 1, loanDate: -1 });

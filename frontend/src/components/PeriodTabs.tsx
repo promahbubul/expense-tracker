@@ -4,7 +4,7 @@ export type PeriodValue = 'today' | 'yesterday' | 'weekly' | 'monthly' | 'yearly
 
 const periods: Array<{ value: PeriodValue; label: string }> = [
   { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Last Day' },
+  { value: 'yesterday', label: 'Yesterday' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },

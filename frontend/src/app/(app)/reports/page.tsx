@@ -74,15 +74,11 @@ export default function ReportsPage() {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>Reports</h1>
-          <p>Weekly, monthly, yearly, and custom statements.</p>
-        </div>
+      <div className="pageTools">
         <div className="actions">
           <button className="ghostButton" type="button" onClick={downloadPdf}>
             <Download size={17} />
-            PDF
+            Download PDF
           </button>
           <button className="button" type="button" onClick={sharePdf}>
             <Share2 size={17} />
@@ -137,11 +133,11 @@ export default function ReportsPage() {
           <strong className="amountExpense">{money(statement?.totals.expense ?? 0)}</strong>
         </article>
         <article className="metricCard">
-          <span>Loan Borrowed</span>
+          <span>Borrowed</span>
           <strong>{money(statement?.totals.loanBorrowed ?? 0)}</strong>
         </article>
         <article className="metricCard">
-          <span>Loan Lent</span>
+          <span>Lent</span>
           <strong>{money(statement?.totals.loanLent ?? 0)}</strong>
         </article>
       </section>

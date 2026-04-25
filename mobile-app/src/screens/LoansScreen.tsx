@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Button, Card, Chip, Field, Row, Screen, SectionTitle, Segmented, Sheet } from '../components/ui';
+import { Button, Card, Chip, EmptyState, Field, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet } from '../components/ui';
 import { api } from '../services/api';
 import { Account, Loan, LoanPerson } from '../types';
 import { dateLabel, money, refName } from '../utils/format';
@@ -57,6 +57,12 @@ export function LoansScreen() {
 
   return (
     <Screen>
+      <ScreenHeader
+        eyebrow="Lending"
+        title={mode === 'people' ? 'Loan People' : 'Loans'}
+        action={<Button label="Add" compact onPress={() => setOpen(true)} />}
+      />
+
       <Segmented
         value={mode}
         onChange={setMode}
@@ -67,18 +73,25 @@ export function LoansScreen() {
       />
 
       <Card>
-        <SectionTitle title={mode === 'people' ? 'Loan Accounts' : 'Loans'} action={<Button label="Add" onPress={() => setOpen(true)} />} />
-        {mode === 'people'
-          ? people.map((item) => <Row key={item._id} title={item.name} subtitle={item.phone} />)
-          : loans.map((item) => (
-              <Row
-                key={item._id}
-                title={item.purpose}
-                subtitle={`${refName(item.personId)} - ${refName(item.accountId)} - ${dateLabel(item.loanDate)}`}
-                amount={money(item.amount)}
-                danger={item.direction === 'LENT'}
-              />
-            ))}
+        {mode === 'people' ? (
+          people.length ? (
+            people.map((item) => <Row key={item._id} title={item.name} subtitle={item.phone} />)
+          ) : (
+            <EmptyState title="No loan people yet" subtitle="Add someone you lend to or borrow from." />
+          )
+        ) : loans.length ? (
+          loans.map((item) => (
+            <Row
+              key={item._id}
+              title={item.purpose}
+              subtitle={`${refName(item.personId)} - ${refName(item.accountId)} - ${dateLabel(item.loanDate)}`}
+              amount={money(item.amount)}
+              danger={item.direction === 'LENT'}
+            />
+          ))
+        ) : (
+          <EmptyState title="No loan entries yet" subtitle="Track borrowed and lent money from this screen." />
+        )}
       </Card>
 
       <Sheet visible={open} title={mode === 'people' ? 'Add Loan Account' : 'Add Loan'} onClose={() => setOpen(false)}>

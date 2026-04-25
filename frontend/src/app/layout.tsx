@@ -3,8 +3,8 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Expense Tracker',
-  description: 'Company expense, income, loan, and reporting dashboard',
+  title: 'Money Journal',
+  description: 'Personal income, expense, loan, and reporting dashboard',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

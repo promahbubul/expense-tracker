@@ -1,7 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { Company } from '../companies/company.schema';
-import { UserRole } from '../common/types';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -21,15 +19,14 @@ export class User {
   @Prop({ trim: true })
   phone?: string;
 
-  @Prop({ type: String, enum: UserRole, default: UserRole.HANDLER })
-  role!: UserRole;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Company.name, required: true, index: true })
-  companyId!: Types.ObjectId;
-
   @Prop({ default: true })
   isActive!: boolean;
+
+  @Prop()
+  passwordResetToken?: string;
+
+  @Prop({ type: Date })
+  passwordResetExpiresAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-UserSchema.index({ email: 1 }, { unique: true });

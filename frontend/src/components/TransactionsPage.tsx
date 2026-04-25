@@ -100,11 +100,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>{title}</h1>
-          <p>{title} by account, category, date, and amount.</p>
-        </div>
+      <div className="pageTools">
         <button className="button" type="button" onClick={startCreate}>
           <Plus size={17} />
           Add {title.slice(0, -1)}

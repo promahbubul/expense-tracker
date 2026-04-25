@@ -17,15 +17,15 @@ export class LoansService {
   ) {}
 
   listPeople(user: JwtUser) {
-    return this.people.find({ companyId: user.companyId, isActive: true }).sort({ createdAt: -1 }).lean();
+    return this.people.find({ userId: user.sub, isActive: true }).sort({ createdAt: -1 }).lean();
   }
 
   createPerson(dto: CreateLoanPersonDto, user: JwtUser) {
-    return this.people.create({ ...dto, companyId: user.companyId });
+    return this.people.create({ ...dto, userId: user.sub });
   }
 
   async updatePerson(id: string, dto: UpdateLoanPersonDto, user: JwtUser) {
-    const person = await this.people.findOneAndUpdate({ _id: id, companyId: user.companyId }, dto, { new: true }).lean();
+    const person = await this.people.findOneAndUpdate({ _id: id, userId: user.sub }, dto, { new: true }).lean();
     if (!person) {
       throw new NotFoundException('Loan account not found');
     }
@@ -33,7 +33,7 @@ export class LoansService {
   }
 
   async removePerson(id: string, user: JwtUser) {
-    const person = await this.people.findOneAndUpdate({ _id: id, companyId: user.companyId }, { isActive: false });
+    const person = await this.people.findOneAndUpdate({ _id: id, userId: user.sub }, { isActive: false });
     if (!person) {
       throw new NotFoundException('Loan account not found');
     }
@@ -41,7 +41,7 @@ export class LoansService {
   }
 
   listLoans(user: JwtUser, from?: string, to?: string) {
-    const filter: Record<string, unknown> = { companyId: user.companyId };
+    const filter: Record<string, unknown> = { userId: user.sub };
     if (from || to) {
       filter.loanDate = {
         ...(from ? { $gte: startOfDay(new Date(from)) } : {}),
@@ -57,26 +57,29 @@ export class LoansService {
   }
 
   async createLoan(dto: CreateLoanDto, user: JwtUser) {
-    await this.accounts.adjustBalance(dto.accountId, user.companyId, this.effect(dto.direction, dto.amount));
+    await this.ensurePerson(dto.personId, user.sub);
+    await this.accounts.adjustBalance(dto.accountId, user.sub, this.effect(dto.direction, dto.amount));
     return this.loans.create({
       ...dto,
-      companyId: user.companyId,
+      userId: user.sub,
       loanDate: new Date(dto.loanDate),
     });
   }
 
   async updateLoan(id: string, dto: UpdateLoanDto, user: JwtUser) {
-    const current = await this.loans.findOne({ _id: id, companyId: user.companyId });
+    const current = await this.loans.findOne({ _id: id, userId: user.sub });
     if (!current) {
       throw new NotFoundException('Loan not found');
     }
 
-    await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, -this.effect(current.direction, current.amount));
+    await this.accounts.adjustBalance(current.accountId.toString(), user.sub, -this.effect(current.direction, current.amount));
     try {
       const nextDirection = dto.direction ?? current.direction;
       const nextAmount = dto.amount ?? current.amount;
       const nextAccountId = dto.accountId ?? current.accountId.toString();
-      await this.accounts.adjustBalance(nextAccountId, user.companyId, this.effect(nextDirection, nextAmount));
+      const nextPersonId = dto.personId ?? current.personId.toString();
+      await this.ensurePerson(nextPersonId, user.sub);
+      await this.accounts.adjustBalance(nextAccountId, user.sub, this.effect(nextDirection, nextAmount));
       current.set({
         ...dto,
         loanDate: dto.loanDate ? new Date(dto.loanDate) : current.loanDate,
@@ -88,22 +91,29 @@ export class LoansService {
         .populate('accountId', 'name number')
         .lean();
     } catch (error) {
-      await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, this.effect(current.direction, current.amount));
+      await this.accounts.adjustBalance(current.accountId.toString(), user.sub, this.effect(current.direction, current.amount));
       throw error;
     }
   }
 
   async removeLoan(id: string, user: JwtUser) {
-    const current = await this.loans.findOne({ _id: id, companyId: user.companyId });
+    const current = await this.loans.findOne({ _id: id, userId: user.sub });
     if (!current) {
       throw new NotFoundException('Loan not found');
     }
-    await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, -this.effect(current.direction, current.amount));
+    await this.accounts.adjustBalance(current.accountId.toString(), user.sub, -this.effect(current.direction, current.amount));
     await current.deleteOne();
     return { success: true };
   }
 
   private effect(direction: LoanDirection, amount: number) {
     return direction === LoanDirection.BORROWED ? amount : -amount;
+  }
+
+  private async ensurePerson(personId: string, userId: string) {
+    const person = await this.people.findOne({ _id: personId, userId, isActive: true });
+    if (!person) {
+      throw new NotFoundException('Loan account not found');
+    }
   }
 }

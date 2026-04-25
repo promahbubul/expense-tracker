@@ -1,14 +1,14 @@
-# Expense Tracker
+# Money Journal
 
-Full-stack expense tracker using NestJS, MongoDB, and Next.js.
+Personal finance tracker built with NestJS, MongoDB, Next.js, and Expo.
 
 ## Apps
 
-- `backend`: NestJS API with MongoDB/Mongoose, JWT auth, company scoping, accounts, categories, incomes, expenses, loans, dashboard, and reports.
-- `frontend`: Next.js App Router frontend with dashboard charts, CRUD screens, loan workflows, reports, companies, users, and settings.
-- `mobile-app`: Expo mobile app with compact screens and bottom navigation for the same backend.
+- `backend`: NestJS API with JWT auth, user-scoped accounts, categories, incomes, expenses, loans, dashboard, and reports.
+- `frontend`: Next.js web app with modern dashboard, CRUD screens, signup, forgot/reset password, and PDF reports.
+- `mobile-app`: Expo mobile app with refreshed UI, signup/login/reset flows, and the same backend integration.
 
-## Manual Setup
+## Local Setup
 
 ```bash
 npm install
@@ -18,15 +18,28 @@ npm run dev
 ```
 
 API runs on `http://localhost:4000` and web runs on `http://localhost:3000`.
-The frontend currency defaults to `BDT` and can be changed with `NEXT_PUBLIC_CURRENCY`.
 
-Before running `npm run dev`, start MongoDB manually and make sure `backend/.env` has the correct URI:
+## Database
+
+Make sure MongoDB is running locally and your backend env uses:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/expense-tracker
+MONGODB_URI=mongodb://localhost:27017/expense-tracker-personal
 ```
 
-You can also use MongoDB Atlas by replacing `MONGODB_URI` with your Atlas connection string.
+One command to run migrations and seed starter data:
+
+```bash
+npm run db:setup
+```
+
+Optional seed env values:
+
+```env
+SEED_EMAIL=demo@example.com
+SEED_PASSWORD=password123
+SEED_NAME=Demo User
+```
 
 ## Mobile App
 
@@ -34,19 +47,16 @@ You can also use MongoDB Atlas by replacing `MONGODB_URI` with your Atlas connec
 cd mobile-app
 npm install
 cp .env.example .env
-npm run start
+npm start
 ```
 
-Set `EXPO_PUBLIC_API_URL` to the backend API. Android emulator usually needs `http://10.0.2.2:4000/api`; physical devices need your computer's LAN IP.
+- Android emulator: `EXPO_PUBLIC_API_URL=http://10.0.2.2:4000/api`
+- Physical phone: use your computer LAN IP, for example `http://192.168.0.100:4000/api`
 
-## Implemented Flow
+## Current Flow
 
-- Signup/login with JWT; signup creates a company automatically.
-- Super admins can list companies; admins see and manage their own workspace. Add owner emails in `SUPER_ADMIN_EMAILS`.
-- Account balances update when incomes, expenses, and loans are created, edited, or deleted.
-- Expenses and incomes support account/category/date/amount entry plus date range filtering.
-- Loan accounts store person/contact details; loan entries support lent and borrowed money.
-- Dashboard exposes daily, yesterday, weekly, monthly, and yearly income/expense totals, income-vs-expense comparison, category expense totals, and account balance totals.
-- Reports support weekly, monthly, yearly, and custom ranges with all/income/expense/loan filters plus PDF download/share from the web app.
-
-This workspace currently has no local Node/npm installation available, so dependencies could not be installed or verified here.
+- Signup creates a personal workspace with a default wallet and starter categories.
+- Login, forgot password, and reset password are available on web and mobile.
+- Account balances update automatically when incomes, expenses, and loans are created, edited, or deleted.
+- Dashboard shows daily, weekly, monthly, yearly, and custom-range insights.
+- Reports support weekly, monthly, yearly, and custom filters with PDF export on the web app.

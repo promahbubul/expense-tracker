@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Button, Card, Chip, Field, Row, Screen, SectionTitle, Segmented, Sheet } from '../components/ui';
+import { Button, Card, Chip, EmptyState, Field, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet } from '../components/ui';
 import { api } from '../services/api';
 import { Account, Category, Transaction } from '../types';
 import { dateLabel, money, refName } from '../utils/format';
@@ -55,6 +55,12 @@ export function MoneyScreen() {
 
   return (
     <Screen>
+      <ScreenHeader
+        eyebrow="Transactions"
+        title={mode === 'expenses' ? 'Expenses' : 'Incomes'}
+        action={<Button label="Add" compact onPress={() => setOpen(true)} />}
+      />
+
       <Segmented
         value={mode}
         onChange={setMode}
@@ -64,16 +70,19 @@ export function MoneyScreen() {
         ]}
       />
       <Card>
-        <SectionTitle title={mode === 'expenses' ? 'Expenses' : 'Incomes'} action={<Button label="Add" onPress={() => setOpen(true)} />} />
-        {items.map((item) => (
-          <Row
-            key={item._id}
-            title={item.description}
-            subtitle={`${refName(item.categoryId)} - ${refName(item.accountId)} - ${dateLabel(item.transactionDate)}`}
-            amount={money(item.amount)}
-            danger={mode === 'expenses'}
-          />
-        ))}
+        {items.length ? (
+          items.map((item) => (
+            <Row
+              key={item._id}
+              title={item.description}
+              subtitle={`${refName(item.categoryId)} - ${refName(item.accountId)} - ${dateLabel(item.transactionDate)}`}
+              amount={money(item.amount)}
+              danger={mode === 'expenses'}
+            />
+          ))
+        ) : (
+          <EmptyState title={`No ${mode} yet`} subtitle="Create your first entry to start tracking this section." />
+        )}
       </Card>
 
       <Sheet visible={open} title={`Add ${mode === 'expenses' ? 'Expense' : 'Income'}`} onClose={() => setOpen(false)}>

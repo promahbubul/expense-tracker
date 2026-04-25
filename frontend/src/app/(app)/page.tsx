@@ -16,9 +16,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Banknote, HandCoins, ReceiptText, TrendingUp, Users, WalletCards } from 'lucide-react';
+import { Banknote } from 'lucide-react';
 import { PeriodTabs, type PeriodValue } from '@/components/PeriodTabs';
-import { StatCard } from '@/components/StatCard';
 import { http } from '@/lib/api';
 import { money } from '@/lib/format';
 import type { DashboardSummary } from '@/lib/types';
@@ -39,20 +38,34 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="pageHeader">
-        <div>
-          <h1>Dashboard</h1>
-          <p>Income, expense, loan, category, and receivable position.</p>
-        </div>
+      <div className="pageTools pageToolsEnd">
         <PeriodTabs value={period} onChange={setPeriod} />
       </div>
 
-      <section className="metricGrid">
-        <StatCard label="Incomes" value={money(totals?.income ?? 0)} tone="income" icon={TrendingUp} />
-        <StatCard label="Expenses" value={money(totals?.expense ?? 0)} tone="expense" icon={ReceiptText} />
-        <StatCard label="Loan Given" value={money(totals?.loanLent ?? 0)} tone="loan" icon={HandCoins} />
-        <StatCard label="Receivable" value={money(totals?.receivable ?? 0)} tone="loan" icon={Users} detail="People owe you" />
-        <StatCard label="Balance" value={money(totals?.accountBalance ?? 0)} icon={WalletCards} detail={`${summary?.accounts.accounts ?? 0} accounts`} />
+      <section className="summaryHero">
+        <div className="summaryHeroPrimary">
+          <span className="summaryHeroEyebrow">Available balance</span>
+          <strong>{money(totals?.accountBalance ?? 0)}</strong>
+        </div>
+
+        <div className="summaryHeroGrid">
+          <article className="summaryHeroCard">
+            <span>Income</span>
+            <strong className="amountIncome">{money(totals?.income ?? 0)}</strong>
+          </article>
+          <article className="summaryHeroCard">
+            <span>Expense</span>
+            <strong className="amountExpense">{money(totals?.expense ?? 0)}</strong>
+          </article>
+          <article className="summaryHeroCard">
+            <span>Receivable</span>
+            <strong>{money(totals?.receivable ?? 0)}</strong>
+          </article>
+          <article className="summaryHeroCard">
+            <span>Payable</span>
+            <strong>{money(totals?.payable ?? 0)}</strong>
+          </article>
+        </div>
       </section>
 
       <section className="dashboardGrid">

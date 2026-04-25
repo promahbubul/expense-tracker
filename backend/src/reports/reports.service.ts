@@ -30,7 +30,7 @@ export class ReportsService {
 
     if (type === 'all' || type === 'income' || type === 'expense') {
       const transactionFilter: Record<string, unknown> = {
-        companyId: user.companyId,
+        userId: user.sub,
         transactionDate: { $gte: range.from, $lte: range.to },
       };
       if (type === 'income') {
@@ -62,7 +62,7 @@ export class ReportsService {
     if (type === 'all' || type === 'loan') {
       const loans = await this.loans
         .find({
-          companyId: user.companyId,
+          userId: user.sub,
           loanDate: { $gte: range.from, $lte: range.to },
         })
         .populate('personId', 'name phone')

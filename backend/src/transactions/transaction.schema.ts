@@ -2,8 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Account } from '../accounts/account.schema';
 import { Category } from '../categories/category.schema';
-import { Company } from '../companies/company.schema';
 import { TransactionType } from '../common/types';
+import { User } from '../users/user.schema';
 
 export type TransactionDocument = HydratedDocument<Transaction>;
 
@@ -26,12 +26,12 @@ export class Transaction {
   @Prop({ type: Date, required: true })
   transactionDate!: Date;
 
-  @Prop({ required: true, enum: TransactionType, index: true })
+  @Prop({ type: String, required: true, enum: TransactionType, index: true })
   type!: TransactionType;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Company.name, required: true, index: true })
-  companyId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
+  userId!: Types.ObjectId;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
-TransactionSchema.index({ companyId: 1, type: 1, transactionDate: -1 });
+TransactionSchema.index({ userId: 1, type: 1, transactionDate: -1 });

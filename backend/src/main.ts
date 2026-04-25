@@ -23,7 +23,7 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Expense Tracker API')
-    .setDescription('Company-scoped income, expense, account, loan, and reporting API')
+    .setDescription('Personal income, expense, account, loan, and reporting API')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();

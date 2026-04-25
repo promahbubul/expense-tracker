@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { Company } from '../companies/company.schema';
+import { User } from '../users/user.schema';
 
 export type AccountDocument = HydratedDocument<Account>;
 
@@ -23,8 +23,8 @@ export class Account {
   @Prop({ type: Number, default: 0 })
   currentBalance!: number;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Company.name, required: true, index: true })
-  companyId!: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
+  userId!: Types.ObjectId;
 
   @Prop({ default: true })
   isActive!: boolean;

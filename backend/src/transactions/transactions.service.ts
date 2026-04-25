@@ -3,7 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { endOfDay, startOfDay } from 'date-fns';
 import { Model } from 'mongoose';
 import { AccountsService } from '../accounts/accounts.service';
-import { JwtUser, TransactionType } from '../common/types';
+import { Category } from '../categories/category.schema';
+import { CategoryType, JwtUser, TransactionType } from '../common/types';
 import { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 import { Transaction } from './transaction.schema';
 
@@ -11,11 +12,12 @@ import { Transaction } from './transaction.schema';
 export class TransactionsService {
   constructor(
     @InjectModel(Transaction.name) private readonly transactions: Model<Transaction>,
+    @InjectModel(Category.name) private readonly categories: Model<Category>,
     private readonly accounts: AccountsService,
   ) {}
 
   list(type: TransactionType, user: JwtUser, from?: string, to?: string) {
-    const filter: Record<string, unknown> = { companyId: user.companyId, type };
+    const filter: Record<string, unknown> = { userId: user.sub, type };
     if (from || to) {
       filter.transactionDate = {
         ...(from ? { $gte: startOfDay(new Date(from)) } : {}),
@@ -31,26 +33,29 @@ export class TransactionsService {
   }
 
   async create(type: TransactionType, dto: CreateTransactionDto, user: JwtUser) {
-    await this.accounts.adjustBalance(dto.accountId, user.companyId, this.effect(type, dto.amount));
+    await this.ensureCategory(dto.categoryId, user.sub, type);
+    await this.accounts.adjustBalance(dto.accountId, user.sub, this.effect(type, dto.amount));
     return this.transactions.create({
       ...dto,
       type,
-      companyId: user.companyId,
+      userId: user.sub,
       transactionDate: new Date(dto.transactionDate),
     });
   }
 
   async update(id: string, type: TransactionType, dto: UpdateTransactionDto, user: JwtUser) {
-    const current = await this.transactions.findOne({ _id: id, type, companyId: user.companyId });
+    const current = await this.transactions.findOne({ _id: id, type, userId: user.sub });
     if (!current) {
       throw new NotFoundException('Transaction not found');
     }
 
-    await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, -this.effect(current.type, current.amount));
+    await this.accounts.adjustBalance(current.accountId.toString(), user.sub, -this.effect(current.type, current.amount));
     try {
       const nextAccountId = dto.accountId ?? current.accountId.toString();
       const nextAmount = dto.amount ?? current.amount;
-      await this.accounts.adjustBalance(nextAccountId, user.companyId, this.effect(type, nextAmount));
+      const nextCategoryId = dto.categoryId ?? current.categoryId.toString();
+      await this.ensureCategory(nextCategoryId, user.sub, type);
+      await this.accounts.adjustBalance(nextAccountId, user.sub, this.effect(type, nextAmount));
       current.set({
         ...dto,
         transactionDate: dto.transactionDate ? new Date(dto.transactionDate) : current.transactionDate,
@@ -62,22 +67,34 @@ export class TransactionsService {
         .populate('accountId', 'name number')
         .lean();
     } catch (error) {
-      await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, this.effect(current.type, current.amount));
+      await this.accounts.adjustBalance(current.accountId.toString(), user.sub, this.effect(current.type, current.amount));
       throw error;
     }
   }
 
   async remove(id: string, type: TransactionType, user: JwtUser) {
-    const current = await this.transactions.findOne({ _id: id, type, companyId: user.companyId });
+    const current = await this.transactions.findOne({ _id: id, type, userId: user.sub });
     if (!current) {
       throw new NotFoundException('Transaction not found');
     }
-    await this.accounts.adjustBalance(current.accountId.toString(), user.companyId, -this.effect(current.type, current.amount));
+    await this.accounts.adjustBalance(current.accountId.toString(), user.sub, -this.effect(current.type, current.amount));
     await current.deleteOne();
     return { success: true };
   }
 
   private effect(type: TransactionType, amount: number) {
     return type === TransactionType.INCOME ? amount : -amount;
+  }
+
+  private async ensureCategory(categoryId: string, userId: string, type: TransactionType) {
+    const category = await this.categories.findOne({
+      _id: categoryId,
+      userId,
+      type: type === TransactionType.INCOME ? CategoryType.INCOME : CategoryType.EXPENSE,
+      isActive: true,
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Card, Row, Screen, SectionTitle, Segmented, Stat } from '../components/ui';
+import { Card, EmptyState, Row, Screen, ScreenHeader, SectionTitle, Segmented, Stat } from '../components/ui';
 import { api } from '../services/api';
 import { DashboardSummary } from '../types';
 import { money } from '../utils/format';
@@ -17,6 +17,8 @@ export function DashboardScreen() {
 
   return (
     <Screen>
+      <ScreenHeader eyebrow="Summary" title="Overview" subtitle="Balances, flow, and spending at a glance." />
+
       <Segmented
         value={period}
         onChange={setPeriod}
@@ -38,9 +40,13 @@ export function DashboardScreen() {
 
       <Card>
         <SectionTitle title="Top Expense Categories" />
-        {(data?.categoryExpenses ?? []).slice(0, 6).map((item) => (
-          <Row key={item.categoryId} title={item.name} subtitle={`${item.count} entries`} amount={money(item.value)} danger />
-        ))}
+        {(data?.categoryExpenses ?? []).length ? (
+          (data?.categoryExpenses ?? []).slice(0, 6).map((item) => (
+            <Row key={item.categoryId} title={item.name} subtitle={`${item.count} entries`} amount={money(item.value)} danger />
+          ))
+        ) : (
+          <EmptyState title="No expense activity yet" subtitle="Add a few expenses to see category insights here." />
+        )}
       </Card>
     </Screen>
   );

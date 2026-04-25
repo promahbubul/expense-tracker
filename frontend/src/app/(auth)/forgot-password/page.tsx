@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { AuthLayout } from '@/components/AuthLayout';
-import { http, storeSession } from '@/lib/api';
-import type { AuthResponse } from '@/lib/types';
+import { http } from '@/lib/api';
+import type { PasswordResetSession } from '@/lib/types';
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,40 +17,33 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     const form = new FormData(event.currentTarget);
+    const email = String(form.get('email'));
 
     try {
-      const response = await http.post<AuthResponse>('/auth/login', {
-        email: String(form.get('email')),
-        password: String(form.get('password')),
-      });
-      storeSession(response.accessToken, response.user);
-      router.replace('/');
+      const response = await http.post<PasswordResetSession>('/auth/forgot-password', { email });
+      router.replace(`/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(response.resetToken)}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Unable to create reset session');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthLayout title="Sign in">
+    <AuthLayout title="Forgot password">
       <form onSubmit={submit}>
         <div className="field">
           <label>Email</label>
           <input name="email" type="email" placeholder="you@example.com" required />
         </div>
-        <div className="field">
-          <label>Password</label>
-          <input name="password" type="password" placeholder="Password" required />
-        </div>
         {error ? <p className="errorText">{error}</p> : null}
         <button className="button" type="submit" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign in'}
+          {loading ? 'Preparing reset...' : 'Continue'}
         </button>
       </form>
       <div className="authLinks">
+        <Link href="/login">Back to login</Link>
         <Link href="/signup">Create account</Link>
-        <Link href="/forgot-password">Forgot password?</Link>
       </div>
     </AuthLayout>
   );

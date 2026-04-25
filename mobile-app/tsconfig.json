@@ -6,7 +6,7 @@
     "moduleResolution": "Bundler",
     "noEmit": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["react"]
+    "types": ["react", "node"]
   },
   "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx"]
 }

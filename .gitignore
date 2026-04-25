@@ -12,6 +12,7 @@ dist/
 backend/dist/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 mobile-app/.expo/
 mobile-app/dist/
 

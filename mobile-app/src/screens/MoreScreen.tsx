@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Row, Screen, SectionTitle, Segmented } from '../components/ui';
+import { Button, Card, EmptyState, Row, Screen, ScreenHeader, SectionTitle, Segmented } from '../components/ui';
 import { api } from '../services/api';
 import { AuthUser, Category } from '../types';
 
@@ -16,6 +16,8 @@ export function MoreScreen({ user, onLogout }: { user: AuthUser | null; onLogout
 
   return (
     <Screen>
+      <ScreenHeader eyebrow="Profile" title="More" />
+
       <Segmented
         value={mode}
         onChange={setMode}
@@ -27,16 +29,18 @@ export function MoreScreen({ user, onLogout }: { user: AuthUser | null; onLogout
       />
       {mode === 'settings' ? (
         <Card>
-          <SectionTitle title="Account" action={<Button label="Logout" ghost onPress={onLogout} />} />
+          <SectionTitle title="Account" action={<Button label="Logout" ghost compact onPress={onLogout} />} />
           <Row title={user?.name ?? 'User'} subtitle={user?.email} />
-          <Row title="Role" subtitle={user?.role.replace('_', ' ')} />
+          <Row title="Workspace" subtitle="Personal finance profile" />
         </Card>
       ) : (
         <Card>
           <SectionTitle title={mode === 'income' ? 'Income Categories' : 'Expense Categories'} />
-          {categories.map((item) => (
-            <Row key={item._id} title={item.name} subtitle={item.type} />
-          ))}
+          {categories.length ? (
+            categories.map((item) => <Row key={item._id} title={item.name} subtitle={item.type} />)
+          ) : (
+            <EmptyState title="No categories here" subtitle="This section will fill up as your workspace grows." />
+          )}
         </Card>
       )}
     </Screen>

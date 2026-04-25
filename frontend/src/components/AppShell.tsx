@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import {
   Banknote,
   BarChart3,
-  Building2,
+  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   FolderTree,
@@ -12,23 +12,21 @@ import {
   LogOut,
   ReceiptText,
   Settings,
-  UserRoundCog,
   Users,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeProvider';
 import { clearSession, getStoredUser, getToken } from '@/lib/api';
-import type { AuthUser, UserRole } from '@/lib/types';
+import type { AuthUser } from '@/lib/types';
 
 type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  roles?: UserRole[];
 };
 
 const nav: NavItem[] = [
@@ -38,11 +36,9 @@ const nav: NavItem[] = [
   { href: '/categories/income', label: 'Income Categories', icon: FolderTree },
   { href: '/categories/expenses', label: 'Expense Categories', icon: FolderTree },
   { href: '/accounts', label: 'Accounts', icon: WalletCards },
-  { href: '/loan/accounts', label: 'Loan Accounts', icon: Users },
+  { href: '/loan/accounts', label: 'Loan Contacts', icon: Users },
   { href: '/loan/loads', label: 'Loans', icon: Banknote },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/companies', label: 'Companies', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { href: '/users', label: 'Users', icon: UserRoundCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -50,6 +46,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const currentItem = nav.find((item) => {
+    if (item.href === '/') {
+      return pathname === '/';
+    }
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  });
 
   useEffect(() => {
     if (!getToken()) {
@@ -59,48 +64,91 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setUser(getStoredUser());
   }, [router]);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown);
+    return () => window.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   function logout() {
     clearSession();
     router.replace('/login');
   }
 
+  const userInitial = (user?.name ?? user?.email ?? 'E').charAt(0).toUpperCase();
+
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <ClipboardList size={24} />
+          <div className="brandIcon">
+            <ClipboardList size={22} />
+          </div>
           <div>
             <strong>Expense Tracker</strong>
-            <span>{user?.role?.replace('_', ' ') ?? 'Workspace'}</span>
           </div>
         </div>
         <nav className="navList">
-          {nav
-            .filter((item) => !item.roles || (user?.role ? item.roles.includes(user.role) : false))
-            .map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link key={item.href} href={item.href} className={clsx('navItem', active && 'active')}>
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+          {nav.map((item) => {
+            const Icon = item.icon;
+            const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link key={item.href} href={item.href} className={clsx('navItem', active && 'active')}>
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <div className="main">
         <header className="topbar">
-          <div>
-            <strong>{user?.name ?? 'User'}</strong>
-            <span>{user?.email ?? ''}</span>
+          <div className="topbarTitle">
+            <strong>{currentItem?.label ?? 'Workspace'}</strong>
           </div>
           <div className="topbarActions">
             <ThemeToggle />
-            <button className="ghostButton" type="button" onClick={logout}>
-              <LogOut size={17} />
-              Logout
-            </button>
+            <div className="profileMenu" ref={menuRef}>
+              <button
+                className="profileTrigger"
+                type="button"
+                onClick={() => setMenuOpen((open) => !open)}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Open profile menu"
+              >
+                <span className="topbarAvatar">{userInitial}</span>
+                <ChevronDown size={16} />
+              </button>
+
+              {menuOpen ? (
+                <div className="profileDropdown" role="menu">
+                  <div className="profileDetails">
+                    <strong>{user?.name ?? 'Account'}</strong>
+                    <span>{user?.email ?? ''}</span>
+                  </div>
+                  {user ? (
+                    <button className="ghostButton profileAction" type="button" onClick={logout}>
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  ) : (
+                    <Link className="ghostButton profileAction" href="/login">
+                      Login
+                    </Link>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
         <main className="content">{children}</main>

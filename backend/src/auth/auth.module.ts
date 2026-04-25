@@ -4,7 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import type { SignOptions } from 'jsonwebtoken';
-import { Company, CompanySchema } from '../companies/company.schema';
+import { Account, AccountSchema } from '../accounts/account.schema';
+import { Category, CategorySchema } from '../categories/category.schema';
 import { User, UserSchema } from '../users/user.schema';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -15,8 +16,9 @@ import { JwtStrategy } from './jwt.strategy';
     ConfigModule,
     PassportModule,
     MongooseModule.forFeature([
-      { name: Company.name, schema: CompanySchema },
       { name: User.name, schema: UserSchema },
+      { name: Account.name, schema: AccountSchema },
+      { name: Category.name, schema: CategorySchema },
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
