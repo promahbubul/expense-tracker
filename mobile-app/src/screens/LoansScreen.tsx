@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
-import { Button, Card, Chip, EmptyState, Field, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat } from '../components/ui';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat, SelectField } from '../components/ui';
+import { useInfiniteList } from '../hooks/useInfiniteList';
 import { api } from '../services/api';
+import { ThemePalette, useThemedStyles } from '../theme';
 import { Account, Loan, LoanPerson } from '../types';
 import { dateInputValue, dateLabel, money, refName } from '../utils/format';
 
 type Mode = 'people' | 'loans';
 type LoanFilter = 'all' | 'LENT' | 'BORROWED';
 
+const directionOptions: Array<{ value: LoanFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'LENT', label: 'Given' },
+  { value: 'BORROWED', label: 'Taken' },
+];
+
 export function LoansScreen() {
+  const styles = useThemedStyles(createStyles);
   const [mode, setMode] = useState<Mode>('loans');
   const [people, setPeople] = useState<LoanPerson[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -25,22 +34,39 @@ export function LoansScreen() {
   const [filterPersonId, setFilterPersonId] = useState('all');
   const [filterDirection, setFilterDirection] = useState<LoanFilter>('all');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const peoplePager = useInfiniteList(people);
+  const loanPager = useInfiniteList(loans);
 
-  async function load() {
-    const params = new URLSearchParams();
-    if (filterPersonId !== 'all') params.set('personId', filterPersonId);
-    if (filterDirection !== 'all') params.set('direction', filterDirection);
-    const suffix = params.toString() ? `?${params.toString()}` : '';
-    const [personRows, accountRows, loanRows] = await Promise.all([
-      api<LoanPerson[]>('/loan/accounts'),
-      api<Account[]>('/accounts'),
-      api<Loan[]>(`/loan/loads${suffix}`),
-    ]);
-    setPeople(personRows);
-    setAccounts(accountRows);
-    setLoans(loanRows);
-    setPersonId((current) => current || personRows[0]?._id || '');
-    setAccountId((current) => current || accountRows[0]?._id || '');
+  async function load(options?: { refresh?: boolean }) {
+    if (options?.refresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (filterPersonId !== 'all') params.set('personId', filterPersonId);
+      if (filterDirection !== 'all') params.set('direction', filterDirection);
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      const [personRows, accountRows, loanRows] = await Promise.all([
+        api<LoanPerson[]>('/loan/accounts'),
+        api<Account[]>('/accounts'),
+        api<Loan[]>(`/loan/loads${suffix}`),
+      ]);
+      setPeople(personRows);
+      setAccounts(accountRows);
+      setLoans(loanRows);
+      setPersonId((current) => current || personRows[0]?._id || '');
+      setAccountId((current) => current || accountRows[0]?._id || '');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load loans');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -75,12 +101,12 @@ export function LoansScreen() {
   const net = given - taken;
 
   return (
-    <Screen>
-      <ScreenHeader
-        eyebrow="Lending"
-        title={mode === 'people' ? 'Loan People' : 'Loans'}
-        action={<Button label={mode === 'people' ? 'Add Person' : 'Add Loan'} compact onPress={() => setOpen(true)} />}
-      />
+    <Screen
+      onScroll={mode === 'people' ? peoplePager.onScroll : loanPager.onScroll}
+      onRefresh={() => load({ refresh: true }).catch(console.error)}
+      refreshing={refreshing}
+    >
+      <ScreenHeader title="Loans" action={<IconButton icon="add-outline" tone="primary" onPress={() => setOpen(true)} />} />
 
       <Segmented
         value={mode}
@@ -93,29 +119,23 @@ export function LoansScreen() {
 
       {mode === 'loans' ? (
         <>
-          <Segmented
-            value={filterDirection}
-            onChange={setFilterDirection}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'LENT', label: 'Given' },
-              { value: 'BORROWED', label: 'Taken' },
-            ]}
-          />
-
           <Card>
-            <SectionTitle title="People Filter" action={<Button label="Reset" ghost compact onPress={() => setFilterPersonId('all')} disabled={filterPersonId === 'all'} />} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                <Chip label="All" active={filterPersonId === 'all'} onPress={() => setFilterPersonId('all')} />
-                {people.map((item) => (
-                  <Chip key={item._id} label={item.name} active={filterPersonId === item._id} onPress={() => setFilterPersonId(item._id)} />
-                ))}
+            <View style={styles.filterRow}>
+              <View style={styles.filterField}>
+                <SelectField label="Type" value={filterDirection} options={directionOptions} onChange={setFilterDirection} />
               </View>
-            </ScrollView>
+              <View style={styles.filterField}>
+                <SelectField
+                  label="Person"
+                  value={filterPersonId}
+                  options={[{ value: 'all', label: 'All people' }, ...people.map((item) => ({ value: item._id, label: item.name }))]}
+                  onChange={setFilterPersonId}
+                />
+              </View>
+            </View>
           </Card>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <View style={styles.statsGrid}>
             <Stat label="Given" value={money(given)} tone="expense" />
             <Stat label="Taken" value={money(taken)} tone="income" />
             <Stat label="Net" value={money(Math.abs(net))} tone={net >= 0 ? 'loan' : 'expense'} />
@@ -123,29 +143,45 @@ export function LoansScreen() {
         </>
       ) : null}
 
+      {error ? <EmptyState title={error} /> : null}
+
       <Card>
-        {mode === 'people' ? (
+        {loading && !(mode === 'people' ? people.length : loans.length) ? (
+          <LoadingBlock label={`Loading ${mode}...`} />
+        ) : mode === 'people' ? (
           people.length ? (
-            people.map((item) => <Row key={item._id} title={item.name} subtitle={item.phone} />)
+            <>
+              {peoplePager.visibleItems.map((item) => <Row key={item._id} title={item.name} caption={item.phone || 'Loan contact'} />)}
+              <LoadingFooter visible={peoplePager.loadingMore} />
+            </>
           ) : (
             <EmptyState title="No loan people yet" subtitle="Add someone you lend to or borrow from." />
           )
         ) : loans.length ? (
-          loans.map((item) => (
-            <Row
-              key={item._id}
-              title={item.purpose}
-              subtitle={`${item.direction === 'LENT' ? 'Given' : 'Taken'} - ${refName(item.personId)} - ${refName(item.accountId)} - ${dateLabel(item.loanDate)}`}
-              amount={money(item.amount)}
-              danger={item.direction === 'LENT'}
-            />
-          ))
+          <>
+            {loanPager.visibleItems.map((item) => (
+              <Row
+                key={item._id}
+                title={item.purpose}
+                meta={[item.direction === 'LENT' ? 'Given' : 'Taken', refName(item.personId), refName(item.accountId)]}
+                caption={dateLabel(item.loanDate)}
+                amount={money(item.amount)}
+                danger={item.direction === 'LENT'}
+              />
+            ))}
+            <LoadingFooter visible={loanPager.loadingMore} />
+          </>
         ) : (
           <EmptyState title="No loan entries yet" subtitle="Track borrowed and lent money from this screen." />
         )}
+        {(mode === 'people' ? people.length : loans.length) ? (
+          <Text style={styles.listMeta}>
+            {mode === 'people' ? `${peoplePager.visibleCount} of ${peoplePager.totalCount}` : `${loanPager.visibleCount} of ${loanPager.totalCount}`}
+          </Text>
+        ) : null}
       </Card>
 
-      <Sheet visible={open} title={mode === 'people' ? 'Add Loan Account' : 'Add Loan'} onClose={() => setOpen(false)}>
+      <Sheet visible={open} title={mode === 'people' ? 'Add Loan Person' : 'Add Loan'} onClose={() => setOpen(false)}>
         {mode === 'people' ? (
           <>
             <Field label="Name" value={name} onChangeText={setName} />
@@ -161,12 +197,12 @@ export function LoansScreen() {
                 { value: 'BORROWED', label: 'Taken' },
               ]}
             />
-            <Field label="Date" value={loanDate} onChangeText={setLoanDate} placeholder="YYYY-MM-DD" />
-            <Field label="Purpose" value={purpose} onChangeText={setPurpose} />
+            <DateField label="Date" value={loanDate} onChange={setLoanDate} placeholder="Select date" />
+            <Field label="Purpose" value={purpose} onChangeText={setPurpose} multiline />
             <Field label="Amount" value={amount} onChangeText={setAmount} numeric />
             <SectionTitle title="Person" />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row' }}>
+              <View style={styles.chipRow}>
                 {people.map((item) => (
                   <Chip key={item._id} label={item.name} active={personId === item._id} onPress={() => setPersonId(item._id)} />
                 ))}
@@ -174,7 +210,7 @@ export function LoansScreen() {
             </ScrollView>
             <SectionTitle title="Account" />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row' }}>
+              <View style={styles.chipRow}>
                 {accounts.map((item) => (
                   <Chip key={item._id} label={item.name} active={accountId === item._id} onPress={() => setAccountId(item._id)} />
                 ))}
@@ -188,3 +224,31 @@ export function LoansScreen() {
     </Screen>
   );
 }
+
+const createStyles = (palette: ThemePalette) =>
+  StyleSheet.create({
+    filterRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    filterField: {
+      flex: 1,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingBottom: 4,
+    },
+    listMeta: {
+      paddingTop: 8,
+      color: palette.muted,
+      fontSize: 10,
+      fontWeight: '700',
+      textAlign: 'right',
+    },
+  });

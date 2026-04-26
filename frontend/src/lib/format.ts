@@ -1,7 +1,6 @@
 export function money(value = 0) {
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: process.env.NEXT_PUBLIC_CURRENCY ?? 'BDT',
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
 }

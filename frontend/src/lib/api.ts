@@ -2,7 +2,14 @@
 
 import type { AuthUser } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+export const API_ORIGIN = (() => {
+  try {
+    return new URL(API_URL).origin;
+  } catch {
+    return 'http://localhost:4000';
+  }
+})();
 const CACHE_KEY = 'expense_cache_v2';
 const QUEUE_KEY = 'expense_queue_v2';
 const DEVICE_KEY = 'expense_device_id';
@@ -1316,3 +1323,7 @@ export const http = {
   patch: <T>(path: string, body: Record<string, unknown>) => api<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => api<T>(path, { method: 'DELETE' }),
 };
+
+export function buildGoogleAuthStartUrl(returnTo: string) {
+  return `${API_ORIGIN}/api/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+}

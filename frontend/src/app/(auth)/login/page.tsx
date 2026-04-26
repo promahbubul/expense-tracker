@@ -4,13 +4,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { AuthLayout } from '@/components/AuthLayout';
-import { http, storeSession } from '@/lib/api';
+import { buildGoogleAuthStartUrl, http, storeSession } from '@/lib/api';
 import type { AuthResponse } from '@/lib/types';
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  function continueWithGoogle() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    setGoogleLoading(true);
+    window.location.href = buildGoogleAuthStartUrl(`${window.location.origin}/google/callback`);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,6 +58,12 @@ export default function LoginPage() {
           {loading ? 'Signing in...' : 'Sign in'}
         </button>
       </form>
+      <div className="authDivider">
+        <span>or</span>
+      </div>
+      <button className="ghostButton authWideButton" type="button" onClick={continueWithGoogle} disabled={googleLoading || loading}>
+        {googleLoading ? 'Opening Google...' : 'Continue with Google'}
+      </button>
       <div className="authLinks">
         <Link href="/signup">Create account</Link>
         <Link href="/forgot-password">Forgot password?</Link>

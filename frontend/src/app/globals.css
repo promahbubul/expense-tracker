@@ -130,12 +130,18 @@ button {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .brand strong {
   font-size: 18px;
+}
+
+.brandLogoImage {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .navList {
@@ -1197,14 +1203,18 @@ td[colspan] {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 800;
+  background: var(--surface-soft);
+  overflow: hidden;
 }
 
 .authBrand strong {
   font-size: 18px;
+}
+
+.authBrandLogoImage {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .authPanelHeader {
@@ -1224,6 +1234,29 @@ td[colspan] {
 .authPanel form {
   display: grid;
   gap: 14px;
+}
+
+.authWideButton {
+  width: 100%;
+}
+
+.authDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.authDivider::before,
+.authDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
 
 .authLinks {
@@ -1246,6 +1279,11 @@ td[colspan] {
 
 .muted {
   color: var(--muted);
+}
+
+.authNotice {
+  margin: 0;
+  line-height: 1.6;
 }
 
 .settingsPanel {

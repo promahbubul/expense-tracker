@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { AuthLayout } from '@/components/AuthLayout';
-import { http, storeSession } from '@/lib/api';
+import { buildGoogleAuthStartUrl, http, storeSession } from '@/lib/api';
 import type { AuthResponse } from '@/lib/types';
 
 export default function SignupPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   function displayNameFromEmail(email: string) {
     const localPart = email.split('@')[0] ?? 'User';
@@ -23,6 +24,15 @@ export default function SignupPage() {
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  function continueWithGoogle() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    setGoogleLoading(true);
+    window.location.href = buildGoogleAuthStartUrl(`${window.location.origin}/google/callback`);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -63,6 +73,12 @@ export default function SignupPage() {
           {loading ? 'Creating account...' : 'Create account'}
         </button>
       </form>
+      <div className="authDivider">
+        <span>or</span>
+      </div>
+      <button className="ghostButton authWideButton" type="button" onClick={continueWithGoogle} disabled={googleLoading || loading}>
+        {googleLoading ? 'Opening Google...' : 'Continue with Google'}
+      </button>
       <div className="authLinks">
         <Link href="/login">Already have an account?</Link>
         <Link href="/forgot-password">Forgot password?</Link>

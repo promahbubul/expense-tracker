@@ -1,22 +1,31 @@
 export function money(value = 0) {
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: process.env.EXPO_PUBLIC_CURRENCY ?? 'BDT',
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
 }
 
-export function dateInputValue(value?: string | Date) {
+function toDate(value?: string | Date) {
   const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+export function dateInputValue(value?: string | Date) {
+  const date = toDate(value);
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
   return `${year}-${month}-${day}`;
 }
 
 export function dateLabel(value?: string) {
   if (!value) return '';
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(value));
+  const date = toDate(value);
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 export function refName(value: string | { name?: string; number?: string }) {

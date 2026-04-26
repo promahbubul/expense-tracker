@@ -9,11 +9,11 @@ export type AuthUser = {
 export type AuthResponse = {
   accessToken: string;
   user: AuthUser;
+  message?: string;
 };
 
 export type PasswordResetSession = {
   success: boolean;
-  resetToken: string;
   expiresAt: string;
   message: string;
 };

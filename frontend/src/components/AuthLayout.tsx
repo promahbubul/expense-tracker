@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 type AuthLayoutProps = {
   title: string;
   subtitle?: string;
@@ -11,7 +13,9 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
     <main className="authPage">
       <section className="authPanel">
         <div className="authBrand authBrandCompact">
-          <span className="authBrandMark">ET</span>
+          <span className="authBrandMark">
+            <Image src="/logo.png" alt="Expense Tracker logo" width={28} height={28} className="authBrandLogoImage" priority />
+          </span>
           <strong>Expense Tracker</strong>
         </div>
         <div className="authPanelHeader">

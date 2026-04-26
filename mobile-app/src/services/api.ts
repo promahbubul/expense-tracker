@@ -1,6 +1,7 @@
 import { NativeModules, Platform } from 'react-native';
 
 const configuredApiUrl = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api');
+const REQUEST_TIMEOUT_MS = 10000;
 
 let authToken = '';
 
@@ -22,12 +23,17 @@ function extractHost(value?: string | null) {
   }
 
   const trimmed = value.trim();
-  const urlMatch = trimmed.match(/^https?:\/\/([^/:]+)/i);
-  if (urlMatch?.[1]) {
-    return urlMatch[1];
+
+  const schemeMatch = trimmed.match(/^[a-z][a-z0-9+.-]*:\/\//i);
+  if (schemeMatch) {
+    try {
+      return new URL(trimmed).hostname || null;
+    } catch {
+      return null;
+    }
   }
 
-  const hostMatch = trimmed.match(/^([^/:]+)(?::\d+)?/);
+  const hostMatch = trimmed.match(/^([^/:?#]+)(?::\d+)?/);
   return hostMatch?.[1] ?? null;
 }
 
@@ -90,14 +96,20 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   }
 
   let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
     response = await fetch(`${apiUrl}${path}`, {
       method: options.method ?? 'GET',
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
     });
   } catch {
-    throw new Error(`Cannot reach API at ${apiUrl}`);
+    throw new Error(`Cannot reach API at ${apiUrl}. Check that backend is running and your phone and PC are on the same Wi-Fi.`);
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (!response.ok) {

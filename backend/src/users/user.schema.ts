@@ -13,7 +13,7 @@ export class User {
   @Prop({ required: true, lowercase: true, trim: true, unique: true })
   email!: string;
 
-  @Prop({ required: true })
+  @Prop()
   password!: string;
 
   @Prop({ trim: true })
@@ -22,11 +22,26 @@ export class User {
   @Prop({ default: true })
   isActive!: boolean;
 
+  @Prop({ default: false })
+  emailVerified!: boolean;
+
+  @Prop()
+  emailVerificationToken?: string;
+
+  @Prop({ type: Date })
+  emailVerificationExpiresAt?: Date;
+
   @Prop()
   passwordResetToken?: string;
 
   @Prop({ type: Date })
   passwordResetExpiresAt?: Date;
+
+  @Prop()
+  googleId?: string;
+
+  @Prop({ default: 'LOCAL' })
+  authProvider!: 'LOCAL' | 'GOOGLE';
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

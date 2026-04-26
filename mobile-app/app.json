@@ -3,17 +3,33 @@
     "name": "Expense Tracker",
     "slug": "expense-tracker-mobile",
     "version": "0.1.0",
+    "icon": "./src/assets/logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "expensetracker",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "splash": {
+      "image": "./src/assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "icon": "./src/assets/logo.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0f6b8d"
+        "foregroundImage": "./src/assets/logo.png",
+        "backgroundColor": "#ffffff"
       }
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      "expo-web-browser"
+    ]
   }
 }

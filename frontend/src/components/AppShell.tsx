@@ -5,7 +5,6 @@ import {
   Banknote,
   BarChart3,
   CircleDollarSign,
-  ClipboardList,
   FolderTree,
   Home,
   LogOut,
@@ -15,6 +14,7 @@ import {
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <div className="brand">
           <div className="brandIcon">
-            <ClipboardList size={22} />
+            <Image src="/logo.png" alt="Expense Tracker logo" width={30} height={30} className="brandLogoImage" priority />
           </div>
           <div>
             <strong>Expense Tracker</strong>
