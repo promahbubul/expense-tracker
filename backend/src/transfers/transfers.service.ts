@@ -68,11 +68,20 @@ export class TransfersService {
     const nextFee = changes.fee ?? current.fee ?? 0;
 
     this.ensureAccountsDiffer(nextFromAccountId, nextToAccountId);
+    const deltas = this.buildBalanceDeltas(
+      current.fromAccountId.toString(),
+      current.toAccountId.toString(),
+      current.amount,
+      current.fee ?? 0,
+      nextFromAccountId,
+      nextToAccountId,
+      nextAmount,
+      nextFee,
+    );
 
-    await this.revertTransfer(user.sub, current.fromAccountId.toString(), current.toAccountId.toString(), current.amount, current.fee ?? 0);
+    await this.applyBalanceDeltas(user.sub, deltas);
 
     try {
-      await this.applyTransfer(user.sub, nextFromAccountId, nextToAccountId, nextAmount, nextFee);
       current.set({
         ...changes,
         fee: nextFee,
@@ -81,13 +90,7 @@ export class TransfersService {
       await current.save();
       return this.transfers.findById(current._id).populate('fromAccountId', 'name number').populate('toAccountId', 'name number').lean();
     } catch (error) {
-      await this.applyTransfer(
-        user.sub,
-        current.fromAccountId.toString(),
-        current.toAccountId.toString(),
-        current.amount,
-        current.fee ?? 0,
-      );
+      await this.rollbackBalanceDeltas(user.sub, deltas);
       throw error;
     }
   }
@@ -129,6 +132,60 @@ export class TransfersService {
     } catch (error) {
       await this.accounts.adjustBalance(toAccountId, userId, amount);
       throw error;
+    }
+  }
+
+  private buildBalanceDeltas(
+    currentFromAccountId: string,
+    currentToAccountId: string,
+    currentAmount: number,
+    currentFee: number,
+    nextFromAccountId: string,
+    nextToAccountId: string,
+    nextAmount: number,
+    nextFee: number,
+  ) {
+    const deltas = new Map<string, number>();
+
+    const addDelta = (accountId: string, delta: number) => {
+      deltas.set(accountId, (deltas.get(accountId) ?? 0) + delta);
+    };
+
+    // Remove the current transfer effect.
+    addDelta(currentFromAccountId, currentAmount + currentFee);
+    addDelta(currentToAccountId, -currentAmount);
+
+    // Apply the next transfer effect.
+    addDelta(nextFromAccountId, -(nextAmount + nextFee));
+    addDelta(nextToAccountId, nextAmount);
+
+    return [...deltas.entries()]
+      .filter(([, delta]) => delta !== 0)
+      .map(([accountId, delta]) => ({ accountId, delta }));
+  }
+
+  private async applyBalanceDeltas(userId: string, deltas: Array<{ accountId: string; delta: number }>) {
+    const ordered = [...deltas].sort((left, right) => left.delta - right.delta);
+    const applied: Array<{ accountId: string; delta: number }> = [];
+
+    try {
+      for (const item of ordered) {
+        await this.accounts.adjustBalance(item.accountId, userId, item.delta);
+        applied.push(item);
+      }
+    } catch (error) {
+      await this.rollbackBalanceDeltas(userId, applied);
+      throw error;
+    }
+  }
+
+  private async rollbackBalanceDeltas(userId: string, deltas: Array<{ accountId: string; delta: number }>) {
+    for (const item of [...deltas].reverse()) {
+      try {
+        await this.accounts.adjustBalance(item.accountId, userId, -item.delta);
+      } catch {
+        // Best-effort rollback if a later step failed after partial balance updates.
+      }
     }
   }
 }

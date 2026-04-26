@@ -7,7 +7,7 @@ import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { Category, CategoryType } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 type Props = {
   type: CategoryType;
@@ -21,12 +21,16 @@ export function CategoryManager({ type, toolbarStart }: Props) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       setItems(await http.get<Category[]>(`/categories?type=${type}`));
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [type]);
 
@@ -44,7 +48,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
       }
       setOpen(false);
       setEditing(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -55,7 +59,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
       return;
     }
     await http.delete(`/categories/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   return (

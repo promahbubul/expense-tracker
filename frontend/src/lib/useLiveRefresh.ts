@@ -1,15 +1,26 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { DATA_SYNC_EVENT } from './api';
 
-export function useLiveRefresh(refresh: () => Promise<void>, intervalMs = 15000) {
+export type LiveRefreshOptions = {
+  silent?: boolean;
+  source?: 'initial' | 'sync' | 'online' | 'focus' | 'visible' | 'poll';
+};
+
+export function useLiveRefresh(refresh: (options?: LiveRefreshOptions) => Promise<void>, intervalMs = 60000) {
+  const refreshRef = useRef(refresh);
+
   useEffect(() => {
-    function run() {
-      refresh().catch(console.error);
+    refreshRef.current = refresh;
+  }, [refresh]);
+
+  useEffect(() => {
+    function run(options: LiveRefreshOptions) {
+      refreshRef.current(options).catch(console.error);
     }
 
-    run();
+    run({ silent: false, source: 'initial' });
 
     if (typeof window === 'undefined') {
       return;
@@ -17,27 +28,31 @@ export function useLiveRefresh(refresh: () => Promise<void>, intervalMs = 15000)
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
-        run();
+        run({ silent: true, source: 'visible' });
       }
     };
 
-    window.addEventListener(DATA_SYNC_EVENT, run as EventListener);
-    window.addEventListener('online', run);
-    window.addEventListener('focus', run);
+    const onSync = () => run({ silent: true, source: 'sync' });
+    const onOnline = () => run({ silent: true, source: 'online' });
+    const onFocus = () => run({ silent: true, source: 'focus' });
+
+    window.addEventListener(DATA_SYNC_EVENT, onSync as EventListener);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
 
     const timer = window.setInterval(() => {
       if (navigator.onLine && document.visibilityState === 'visible') {
-        run();
+        run({ silent: true, source: 'poll' });
       }
     }, intervalMs);
 
     return () => {
-      window.removeEventListener(DATA_SYNC_EVENT, run as EventListener);
-      window.removeEventListener('online', run);
-      window.removeEventListener('focus', run);
+      window.removeEventListener(DATA_SYNC_EVENT, onSync as EventListener);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(timer);
     };
-  }, [intervalMs, refresh]);
+  }, [intervalMs]);
 }

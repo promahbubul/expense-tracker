@@ -6,7 +6,7 @@ import { DataTable } from '@/components/DataTable';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { ReportStatement } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function kindLabel(kind: string) {
   return (
@@ -29,8 +29,10 @@ export default function ReportsPage() {
   const [statement, setStatement] = useState<ReportStatement | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams({ period, type });
       if (period === 'custom') {
@@ -39,7 +41,9 @@ export default function ReportsPage() {
       }
       setStatement(await http.get<ReportStatement>(`/reports/statement?${params}`));
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [from, period, to, type]);
 
@@ -247,7 +251,7 @@ export default function ReportsPage() {
               </div>
             </>
           ) : null}
-          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)}>
             Generate
           </button>
           <button className="ghostButton" type="button" onClick={clearFilters} disabled={period === 'monthly' && type === 'all' && !from && !to}>

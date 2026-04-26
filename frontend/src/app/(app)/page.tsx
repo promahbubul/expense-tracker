@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Banknote, RefreshCw, WalletCards } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -21,7 +21,7 @@ import { PeriodTabs, type PeriodValue } from '@/components/PeriodTabs';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { DashboardSummary } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 const pieColors = ['#2563eb', '#f97316'];
 
@@ -82,12 +82,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const requestIdRef = useRef(0);
+  const filterLoadReadyRef = useRef(false);
   const isCustom = period === 'custom';
 
-  const loadSummary = useCallback(async () => {
+  const loadSummary = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError('');
 
     try {
@@ -112,13 +115,22 @@ export default function DashboardPage() {
       }
       setError(err instanceof Error ? err.message : 'Could not load dashboard');
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (!silent && requestId === requestIdRef.current) {
         setLoading(false);
       }
     }
   }, [from, period, to]);
 
   useLiveRefresh(loadSummary);
+
+  useEffect(() => {
+    if (!filterLoadReadyRef.current) {
+      filterLoadReadyRef.current = true;
+      return;
+    }
+
+    loadSummary({ silent: true }).catch(console.error);
+  }, [from, loadSummary, period, to]);
 
   const totals = summary?.totals;
   const categoryExpenses = summary?.categoryExpenses ?? [];
@@ -178,7 +190,7 @@ export default function DashboardPage() {
         {error ? (
           <div className="dashboardBanner">
             <span>{error}</span>
-            <button className="ghostButton" type="button" onClick={() => loadSummary().catch(console.error)}>
+            <button className="ghostButton" type="button" onClick={() => loadSummary({ silent: false }).catch(console.error)}>
               <RefreshCw size={16} />
               Retry
             </button>

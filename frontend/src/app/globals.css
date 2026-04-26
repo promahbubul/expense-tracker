@@ -199,6 +199,44 @@ button {
   flex-wrap: wrap;
 }
 
+.syncPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.syncPillDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.syncPill-pending .syncPillDot {
+  background: #f59e0b;
+}
+
+.syncPill-syncing .syncPillDot {
+  background: var(--primary);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.12);
+}
+
+.syncPill-synced .syncPillDot {
+  background: var(--income);
+}
+
+.syncPill-offline .syncPillDot {
+  background: var(--expense);
+}
+
 .topbarAvatar {
   display: grid;
   place-items: center;

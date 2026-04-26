@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Loan, LoanPerson } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function refId(value: Loan['accountId'] | Loan['personId']) {
   return typeof value === 'string' ? value : value._id;
@@ -34,8 +34,10 @@ export default function LoanLoadsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
@@ -52,7 +54,9 @@ export default function LoanLoadsPage() {
       setPeople(personRows);
       setAccounts(accountRows);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [directionFilter, from, personId, to]);
 
@@ -89,7 +93,7 @@ export default function LoanLoadsPage() {
       }
       setOpen(false);
       setEditing(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -100,7 +104,7 @@ export default function LoanLoadsPage() {
       return;
     }
     await http.delete(`/loan/loads/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   function clearFilters() {
@@ -141,7 +145,7 @@ export default function LoanLoadsPage() {
             <label>To</label>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
-          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)}>
             Filter
           </button>
           <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to && personId === 'all' && directionFilter === 'all'}>

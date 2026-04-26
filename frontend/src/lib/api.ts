@@ -6,12 +6,21 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 const CACHE_KEY = 'expense_cache_v2';
 const QUEUE_KEY = 'expense_queue_v2';
 const DEVICE_KEY = 'expense_device_id';
+const LAST_SYNC_KEY = 'expense_last_sync_at';
 const OFFLINE_SYNC_INTERVAL_MS = 15000;
 
 const OFFLINE_CREATE_ROUTES = new Set(['/accounts', '/categories', '/expenses', '/incomes', '/loan/accounts', '/loan/loads', '/transfers']);
 const OFFLINE_MUTATION_BASES = new Set(['/accounts', '/categories', '/expenses', '/incomes', '/loan/accounts', '/loan/loads', '/transfers']);
 
 export const DATA_SYNC_EVENT = 'expense:data-sync';
+export const SYNC_STATUS_EVENT = 'expense:sync-status';
+
+export type SyncStatus = {
+  phase: 'idle' | 'offline' | 'pending' | 'syncing' | 'synced';
+  pendingCount: number;
+  lastSyncedAt: string | null;
+  message: string;
+};
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | Record<string, unknown> | null;
@@ -40,6 +49,7 @@ type MutableRecord = Record<string, unknown>;
 
 let syncInitialized = false;
 let flushPromise: Promise<void> | null = null;
+let syncStatusCache: SyncStatus | null = null;
 
 function isBrowser() {
   return typeof window !== 'undefined';
@@ -83,6 +93,87 @@ function dispatchSyncEvent() {
   window.dispatchEvent(new Event(DATA_SYNC_EVENT));
 }
 
+function readLastSyncedAt() {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  return window.localStorage.getItem(LAST_SYNC_KEY);
+}
+
+function pluralizeChanges(count: number) {
+  return `${count} change${count === 1 ? '' : 's'}`;
+}
+
+function defaultSyncMessage(phase: SyncStatus['phase'], pendingCount: number, lastSyncedAt: string | null) {
+  if (phase === 'offline') {
+    return pendingCount ? `${pluralizeChanges(pendingCount)} waiting for connection` : 'Offline';
+  }
+
+  if (phase === 'pending') {
+    return `${pluralizeChanges(pendingCount)} pending sync`;
+  }
+
+  if (phase === 'syncing') {
+    return pendingCount ? `Syncing ${pluralizeChanges(pendingCount)}` : 'Syncing changes';
+  }
+
+  if (phase === 'synced' && lastSyncedAt) {
+    return `Synced at ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  return 'Ready';
+}
+
+function buildSyncStatus(partial: Partial<SyncStatus> = {}): SyncStatus {
+  const pendingCount = partial.pendingCount ?? getQueue().length;
+  const lastSyncedAt =
+    partial.lastSyncedAt !== undefined ? partial.lastSyncedAt : (syncStatusCache?.lastSyncedAt ?? readLastSyncedAt());
+  const phase =
+    partial.phase ??
+    (!navigator.onLine ? 'offline' : pendingCount > 0 ? 'pending' : lastSyncedAt ? 'synced' : 'idle');
+  const message = partial.message ?? defaultSyncMessage(phase, pendingCount, lastSyncedAt);
+
+  return {
+    phase,
+    pendingCount,
+    lastSyncedAt,
+    message,
+  };
+}
+
+function dispatchSyncStatus(partial: Partial<SyncStatus> = {}) {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const next = buildSyncStatus(partial);
+  syncStatusCache = next;
+
+  if (next.lastSyncedAt) {
+    window.localStorage.setItem(LAST_SYNC_KEY, next.lastSyncedAt);
+  }
+
+  window.dispatchEvent(new CustomEvent<SyncStatus>(SYNC_STATUS_EVENT, { detail: next }));
+}
+
+export function getSyncStatusSnapshot(): SyncStatus {
+  if (!isBrowser()) {
+    return {
+      phase: 'idle',
+      pendingCount: 0,
+      lastSyncedAt: null,
+      message: 'Ready',
+    };
+  }
+
+  if (!syncStatusCache) {
+    syncStatusCache = buildSyncStatus();
+  }
+
+  return syncStatusCache;
+}
+
 function getCacheStore() {
   return readStore<CacheStore>(CACHE_KEY, {});
 }
@@ -123,6 +214,7 @@ function getQueue() {
 
 function setQueue(items: QueueItem[]) {
   writeStore(QUEUE_KEY, items);
+  dispatchSyncStatus();
 }
 
 function updateQueue(mutator: (items: QueueItem[]) => QueueItem[]) {
@@ -1000,27 +1092,53 @@ async function flushQueuedMutations() {
     return;
   }
 
+  const queue = getQueue();
+  if (!queue.length) {
+    return;
+  }
+
   if (flushPromise) {
     return flushPromise;
   }
 
+  dispatchSyncStatus({
+    phase: 'syncing',
+    pendingCount: queue.length,
+  });
+
   flushPromise = (async () => {
-    for (const item of [...getQueue()]) {
+    let didSync = false;
+    let syncedCount = 0;
+
+    for (const item of [...queue]) {
       try {
         const response = await requestServer(item.path, { method: item.method, body: item.body });
         mergeServerMutationResult(item, response);
         removeQueueItem(item.id);
+        didSync = true;
+        syncedCount += 1;
       } catch (error) {
         const status = getErrorStatus(error);
         if (status === 404 || status === 409) {
           removeQueueItem(item.id);
+          didSync = true;
+          syncedCount += 1;
           continue;
         }
+        dispatchSyncStatus();
         break;
       }
     }
 
-    dispatchSyncEvent();
+    if (didSync) {
+      dispatchSyncStatus({
+        phase: 'synced',
+        pendingCount: getQueue().length,
+        lastSyncedAt: nowIso(),
+        message: `${pluralizeChanges(syncedCount)} synced`,
+      });
+      dispatchSyncEvent();
+    }
   })().finally(() => {
     flushPromise = null;
   });
@@ -1036,7 +1154,12 @@ function initBackgroundSync() {
   syncInitialized = true;
 
   window.addEventListener('online', () => {
+    dispatchSyncStatus();
     flushQueuedMutations().catch(console.error);
+  });
+
+  window.addEventListener('offline', () => {
+    dispatchSyncStatus({ phase: 'offline' });
   });
 
   window.setInterval(() => {
@@ -1074,12 +1197,14 @@ export function getStoredUser(): AuthUser | null {
 export function storeSession(accessToken: string, user: AuthUser) {
   window.localStorage.setItem('expense_token', accessToken);
   window.localStorage.setItem('expense_user', JSON.stringify(user));
+  dispatchSyncStatus();
   flushQueuedMutations().catch(console.error);
 }
 
 export function clearSession() {
   window.localStorage.removeItem('expense_token');
   window.localStorage.removeItem('expense_user');
+  syncStatusCache = null;
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {

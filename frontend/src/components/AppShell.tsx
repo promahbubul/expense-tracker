@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeProvider';
 import { clearSession, getStoredUser, getToken } from '@/lib/api';
 import type { AuthUser } from '@/lib/types';
+import { useSyncStatus } from '@/lib/useSyncStatus';
 
 type NavItem = {
   href: string;
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const syncStatus = useSyncStatus();
 
   const currentItem = nav.find((item) => {
     if (item.href === '/') {
@@ -83,6 +85,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const userInitial = (user?.name ?? user?.email ?? 'E').charAt(0).toUpperCase();
+  const syncLabel =
+    syncStatus.phase === 'offline'
+      ? 'Offline'
+      : syncStatus.phase === 'pending'
+        ? `${syncStatus.pendingCount} Pending`
+        : syncStatus.phase === 'syncing'
+          ? 'Syncing'
+          : syncStatus.phase === 'synced'
+            ? syncStatus.message
+            : 'Ready';
 
   return (
     <div className="shell">
@@ -114,6 +126,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <strong>{currentItem?.label ?? 'Workspace'}</strong>
           </div>
           <div className="topbarActions">
+            <div className={clsx('syncPill', `syncPill-${syncStatus.phase}`)} title={syncStatus.message}>
+              <span className="syncPillDot" aria-hidden="true" />
+              <span>{syncLabel}</span>
+            </div>
             <ThemeToggle />
             <div className="profileMenu" ref={menuRef}>
               <button

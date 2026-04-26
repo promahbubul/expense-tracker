@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Transfer } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function refId(value: Transfer['fromAccountId'] | Transfer['toAccountId']) {
   return typeof value === 'string' ? value : value._id;
@@ -28,14 +28,18 @@ export default function AccountsPage() {
   const [transferError, setTransferError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const [accountRows, transferRows] = await Promise.all([http.get<Account[]>('/accounts'), http.get<Transfer[]>('/transfers')]);
       setItems(accountRows);
       setTransfers(transferRows);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -64,7 +68,7 @@ export default function AccountsPage() {
       }
       setAccountOpen(false);
       setEditingAccount(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -91,7 +95,7 @@ export default function AccountsPage() {
       }
       setTransferOpen(false);
       setEditingTransfer(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setTransferError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -102,7 +106,7 @@ export default function AccountsPage() {
       return;
     }
     await http.delete(`/accounts/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   async function removeTransfer(id: string) {
@@ -110,7 +114,7 @@ export default function AccountsPage() {
       return;
     }
     await http.delete(`/transfers/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   return (

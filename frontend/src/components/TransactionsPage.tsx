@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Category, CategoryType, Transaction } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 type Props = {
   endpoint: 'expenses' | 'incomes';
@@ -36,8 +36,10 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
 
   const amountClass = categoryType === 'INCOME' ? 'amountIncome' : 'amountExpense';
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
@@ -52,7 +54,9 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       setAccounts(accountRows);
       setCategories(categoryRows);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [categoryType, endpoint, from, to]);
 
@@ -80,7 +84,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       }
       setOpen(false);
       setEditing(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -91,7 +95,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       return;
     }
     await http.delete(`/${endpoint}/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   function startCreate() {
@@ -121,7 +125,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
             <label>To</label>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
-          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)} disabled={loading}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)} disabled={loading}>
             Filter
           </button>
           <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to}>

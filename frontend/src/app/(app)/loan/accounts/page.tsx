@@ -6,7 +6,7 @@ import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { LoanPerson } from '@/lib/types';
-import { useLiveRefresh } from '@/lib/useLiveRefresh';
+import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
 
 export default function LoanAccountsPage() {
   const [items, setItems] = useState<LoanPerson[]>([]);
@@ -15,12 +15,16 @@ export default function LoanAccountsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       setItems(await http.get<LoanPerson[]>('/loan/accounts'));
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -45,7 +49,7 @@ export default function LoanAccountsPage() {
       }
       setOpen(false);
       setEditing(null);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -56,7 +60,7 @@ export default function LoanAccountsPage() {
       return;
     }
     await http.delete(`/loan/accounts/${id}`);
-    await load();
+    await load({ silent: true });
   }
 
   return (
