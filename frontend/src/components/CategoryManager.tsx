@@ -1,17 +1,19 @@
 'use client';
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { Category, CategoryType } from '@/lib/types';
 
 type Props = {
   type: CategoryType;
-  title: string;
+  toolbarStart?: ReactNode;
 };
 
-export function CategoryManager({ type, title }: Props) {
+export function CategoryManager({ type, toolbarStart }: Props) {
   const [items, setItems] = useState<Category[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -53,7 +55,8 @@ export function CategoryManager({ type, title }: Props) {
 
   return (
     <>
-      <div className="pageTools">
+      <div className={`pageTools${toolbarStart ? ' pageToolsSplit' : ''}`}>
+        {toolbarStart ? <div className="pageToolsStart">{toolbarStart}</div> : null}
         <button
           className="button"
           type="button"
@@ -63,56 +66,42 @@ export function CategoryManager({ type, title }: Props) {
           }}
         >
           <Plus size={17} />
-          Add Category
+          {type === 'EXPENSE' ? 'Add Expense Category' : 'Add Income Category'}
         </button>
       </div>
 
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item._id}>
-                <td>{item.name}</td>
-                <td>
-                  <span className="badge">{item.type}</span>
-                </td>
-                <td>
-                  <div className="actions">
-                    <button
-                      className="iconButton"
-                      type="button"
-                      onClick={() => {
-                        setEditing(item);
-                        setOpen(true);
-                      }}
-                      aria-label="Edit"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!items.length ? (
-              <tr>
-                <td colSpan={3} className="muted">
-                  No categories found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={items}
+        columns={['Name', 'Type', 'Action']}
+        colSpan={3}
+        emptyMessage="No categories found."
+        renderRow={(item) => (
+          <tr key={item._id}>
+            <td>{item.name}</td>
+            <td>
+              <span className="badge">{item.type}</span>
+            </td>
+            <td>
+              <div className="actions">
+                <button
+                  className="iconButton"
+                  type="button"
+                  onClick={() => {
+                    setEditing(item);
+                    setOpen(true);
+                  }}
+                  aria-label="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
 
       <Modal
         open={open}

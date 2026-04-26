@@ -4,6 +4,7 @@ import { Account, AccountSchema } from '../accounts/account.schema';
 import { Category, CategorySchema } from '../categories/category.schema';
 import { LoanPerson, LoanPersonSchema } from '../loans/loan-person.schema';
 import { Loan, LoanSchema } from '../loans/loan.schema';
+import { Transfer, TransferSchema } from '../transfers/transfer.schema';
 import { Transaction, TransactionSchema } from '../transactions/transaction.schema';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
@@ -16,6 +17,7 @@ import { DashboardService } from './dashboard.service';
       { name: Category.name, schema: CategorySchema },
       { name: Loan.name, schema: LoanSchema },
       { name: LoanPerson.name, schema: LoanPersonSchema },
+      { name: Transfer.name, schema: TransferSchema },
     ]),
   ],
   controllers: [DashboardController],

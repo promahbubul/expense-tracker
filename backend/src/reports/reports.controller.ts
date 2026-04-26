@@ -14,7 +14,7 @@ export class ReportsController {
   statement(
     @CurrentUser() user: JwtUser,
     @Query('period') period?: RangePreset,
-    @Query('type') type?: 'all' | 'income' | 'expense' | 'loan',
+    @Query('type') type?: 'all' | 'income' | 'expense' | 'loan' | 'transfer',
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {

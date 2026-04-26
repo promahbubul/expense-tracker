@@ -37,6 +37,16 @@ export type Account = {
   currentBalance: number;
 };
 
+export type Transfer = {
+  _id: string;
+  fromAccountId: EntityRef | string;
+  toAccountId: EntityRef | string;
+  amount: number;
+  fee: number;
+  note: string;
+  transferDate: string;
+};
+
 export type Category = {
   _id: string;
   name: string;
@@ -107,5 +117,7 @@ export type ReportStatement = {
     expense: number;
     loanBorrowed: number;
     loanLent: number;
+    transferAmount: number;
+    transferFee: number;
   };
 };

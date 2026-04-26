@@ -2,6 +2,7 @@
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
@@ -98,71 +99,63 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
     setOpen(true);
   }
 
+  function clearFilters() {
+    setFrom('');
+    setTo('');
+  }
+
   return (
     <>
-      <div className="pageTools">
-        <button className="button" type="button" onClick={startCreate}>
-          <Plus size={17} />
-          Add {title.slice(0, -1)}
-        </button>
+      <div className="toolbarBar">
+        <div className="toolbar toolbarMain">
+          <div className="field">
+            <label>From</label>
+            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          </div>
+          <div className="field">
+            <label>To</label>
+            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          </div>
+          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
+            Filter
+          </button>
+          <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to}>
+            Clear
+          </button>
+        </div>
+        <div className="toolbarActions">
+          <button className="button" type="button" onClick={startCreate}>
+            <Plus size={17} />
+            Add {title.slice(0, -1)}
+          </button>
+        </div>
       </div>
 
-      <div className="toolbar">
-        <div className="field">
-          <label>From</label>
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>To</label>
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        </div>
-        <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
-          Filter
-        </button>
-      </div>
-
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Category</th>
-              <th>Account</th>
-              <th>Date</th>
-              <th>Amount</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item._id}>
-                <td>{item.description}</td>
-                <td>{refName(item.categoryId)}</td>
-                <td>{refName(item.accountId)}</td>
-                <td>{shortDate(item.transactionDate)}</td>
-                <td className={amountClass}>{money(item.amount)}</td>
-                <td>
-                  <div className="actions">
-                    <button className="iconButton" type="button" onClick={() => startEdit(item)} aria-label="Edit">
-                      <Pencil size={16} />
-                    </button>
-                    <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!items.length ? (
-              <tr>
-                <td colSpan={6} className="muted">
-                  No records found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={items}
+        columns={['Description', 'Category', 'Account', 'Date', 'Amount', 'Action']}
+        colSpan={6}
+        emptyMessage="No records found."
+        renderRow={(item) => (
+          <tr key={item._id}>
+            <td>{item.description}</td>
+            <td>{refName(item.categoryId)}</td>
+            <td>{refName(item.accountId)}</td>
+            <td>{shortDate(item.transactionDate)}</td>
+            <td className={amountClass}>{money(item.amount)}</td>
+            <td>
+              <div className="actions">
+                <button className="iconButton" type="button" onClick={() => startEdit(item)} aria-label="Edit">
+                  <Pencil size={16} />
+                </button>
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
 
       <Modal
         open={open}

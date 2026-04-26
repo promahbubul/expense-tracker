@@ -24,13 +24,25 @@ const tabs: Array<{ key: Tab; label: string }> = [
   { key: 'more', label: 'More' },
 ];
 
+function displayNameFromEmail(email: string) {
+  const localPart = email.split('@')[0] ?? 'User';
+  const cleaned = localPart.replace(/[._-]+/g, ' ').trim();
+  if (!cleaned) {
+    return 'User';
+  }
+
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<Tab>('dashboard');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -83,7 +95,7 @@ export default function App() {
     try {
       const response = await api<AuthResponse>('/auth/signup', {
         method: 'POST',
-        body: { name, phone, email, password },
+        body: { name: displayNameFromEmail(email), email, password },
       });
       await persistSession(response);
     } catch (err) {
@@ -97,8 +109,6 @@ export default function App() {
     setToken('');
     setUser(null);
     setAuthMode('login');
-    setName('');
-    setPhone('');
     setEmail('');
     setPassword('');
     setError('');
@@ -135,7 +145,6 @@ export default function App() {
         <View style={styles.authCard}>
           <Text style={styles.authEyebrow}>Expense Tracker</Text>
           <Text style={styles.authTitle}>{authMode === 'login' ? 'Welcome back' : 'Create account'}</Text>
-          <Text style={styles.authSubtitle}>Clean money tracking without the noise.</Text>
 
           <Segmented
             value={authMode}
@@ -150,13 +159,6 @@ export default function App() {
           />
 
           <View style={styles.authForm}>
-            {authMode === 'signup' ? (
-              <>
-                <Field label="Name" value={name} onChangeText={setName} placeholder="Your name" />
-                <Field label="Phone" value={phone} onChangeText={setPhone} placeholder="Phone" />
-              </>
-            ) : null}
-
             <Field
               label="Email"
               value={email}
@@ -190,6 +192,7 @@ export default function App() {
                     : 'Create account'
               }
               onPress={authMode === 'login' ? login : signup}
+              disabled={!email || !password || loading}
             />
           </View>
         </View>
@@ -275,8 +278,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   authTitle: { marginTop: 16, color: '#19231f', fontSize: 30, lineHeight: 34, fontWeight: '900' },
-  authSubtitle: { marginTop: 8, marginBottom: 16, color: '#6f6a60', lineHeight: 20 },
-  authForm: { marginTop: 16 },
+  authForm: { marginTop: 18 },
   error: { color: '#dc5b4e', marginBottom: 12, fontWeight: '700' },
   header: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10, backgroundColor: '#f4efe6' },
   headerCard: {

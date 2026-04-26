@@ -34,6 +34,16 @@ export type Account = {
   currentBalance: number;
 };
 
+export type Transfer = {
+  _id: string;
+  fromAccountId: Ref | string;
+  toAccountId: Ref | string;
+  amount: number;
+  fee: number;
+  note: string;
+  transferDate: string;
+};
+
 export type Category = {
   _id: string;
   name: string;
@@ -69,6 +79,11 @@ export type Loan = {
 };
 
 export type DashboardSummary = {
+  period: string;
+  range: {
+    from: string;
+    to: string;
+  };
   totals: {
     income: number;
     expense: number;
@@ -79,10 +94,21 @@ export type DashboardSummary = {
     accountBalance: number;
   };
   trend: Array<{ date: string; income: number; expense: number }>;
+  compare: Array<{ name: string; value: number }>;
   categoryExpenses: Array<{ categoryId: string; name: string; value: number; count: number }>;
+  loanPeople: Array<{ personId: string; name: string; phone?: string; lent: number; borrowed: number; net: number }>;
+  accounts: {
+    totalBalance: number;
+    accounts: number;
+  };
 };
 
 export type ReportStatement = {
+  range: {
+    from: string;
+    to: string;
+  };
+  type: string;
   rows: Array<{
     id: string;
     kind: string;
@@ -97,5 +123,7 @@ export type ReportStatement = {
     expense: number;
     loanBorrowed: number;
     loanLent: number;
+    transferAmount: number;
+    transferFee: number;
   };
 };

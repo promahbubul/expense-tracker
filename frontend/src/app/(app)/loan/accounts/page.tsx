@@ -2,6 +2,7 @@
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { LoanPerson } from '@/lib/types';
@@ -69,54 +70,38 @@ export default function LoanAccountsPage() {
         </button>
       </div>
 
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Address</th>
-              <th>Details</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item._id}>
-                <td>{item.name}</td>
-                <td>{item.phone}</td>
-                <td>{item.address}</td>
-                <td>{item.details}</td>
-                <td>
-                  <div className="actions">
-                    <button
-                      className="iconButton"
-                      type="button"
-                      onClick={() => {
-                        setEditing(item);
-                        setOpen(true);
-                      }}
-                      aria-label="Edit"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!items.length ? (
-              <tr>
-                <td colSpan={5} className="muted">
-                  No loan accounts found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={items}
+        columns={['Name', 'Phone', 'Address', 'Details', 'Action']}
+        colSpan={5}
+        emptyMessage="No loan accounts found."
+        renderRow={(item) => (
+          <tr key={item._id}>
+            <td>{item.name}</td>
+            <td>{item.phone}</td>
+            <td>{item.address}</td>
+            <td>{item.details}</td>
+            <td>
+              <div className="actions">
+                <button
+                  className="iconButton"
+                  type="button"
+                  onClick={() => {
+                    setEditing(item);
+                    setOpen(true);
+                  }}
+                  aria-label="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
 
       <Modal
         open={open}

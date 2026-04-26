@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { eachDayOfInterval, eachMonthOfInterval, format } from 'date-fns';
 import { Model, Types } from 'mongoose';
 import { Account } from '../accounts/account.schema';
 import { Category } from '../categories/category.schema';
@@ -7,6 +8,7 @@ import { CategoryType, JwtUser, LoanDirection, TransactionType } from '../common
 import { RangePreset, resolveDateRange } from '../common/utils/date-range';
 import { LoanPerson } from '../loans/loan-person.schema';
 import { Loan } from '../loans/loan.schema';
+import { Transfer } from '../transfers/transfer.schema';
 import { Transaction } from '../transactions/transaction.schema';
 
 @Injectable()
@@ -17,34 +19,38 @@ export class DashboardService {
     @InjectModel(Category.name) private readonly categories: Model<Category>,
     @InjectModel(Loan.name) private readonly loans: Model<Loan>,
     @InjectModel(LoanPerson.name) private readonly loanPeople: Model<LoanPerson>,
+    @InjectModel(Transfer.name) private readonly transfers: Model<Transfer>,
   ) {}
 
-  async summary(user: JwtUser, period: RangePreset = 'today') {
-    const range = resolveDateRange(period);
-    const [transactionTotals, loanTotals, accountTotals, trend, categoryExpenses, loanPeople] = await Promise.all([
+  async summary(user: JwtUser, period: RangePreset = 'today', from?: string, to?: string) {
+    const resolvedPeriod = period === 'custom' || from || to ? 'custom' : period;
+    const range = resolveDateRange(resolvedPeriod, from, to);
+    const [transactionTotals, transferFees, loanTotals, loanExposure, accountTotals, trend, categoryExpenses, loanPeople] = await Promise.all([
       this.transactionTotals(user.sub, range.from, range.to),
+      this.transferFeeTotals(user.sub, range.from, range.to),
       this.loanTotals(user.sub, range.from, range.to),
+      this.loanExposure(user.sub),
       this.accountTotals(user.sub),
-      this.trend(user.sub, range.from, range.to),
+      this.trend(user.sub, range.from, range.to, resolvedPeriod),
       this.categoryExpenseTotals(user.sub, range.from, range.to),
-      this.loanPeopleSummary(user.sub, range.from, range.to),
+      this.loanPeopleSummary(user.sub),
     ]);
 
     return {
-      period,
+      period: resolvedPeriod,
       range,
       totals: {
         income: transactionTotals.income,
-        expense: transactionTotals.expense,
+        expense: transactionTotals.expense + transferFees.total,
         loanBorrowed: loanTotals.borrowed,
         loanLent: loanTotals.lent,
-        receivable: loanTotals.lent,
-        payable: loanTotals.borrowed,
+        receivable: loanExposure.lent,
+        payable: loanExposure.borrowed,
         accountBalance: accountTotals.totalBalance,
       },
       compare: [
         { name: 'Income', value: transactionTotals.income },
-        { name: 'Expense', value: transactionTotals.expense },
+        { name: 'Expense', value: transactionTotals.expense + transferFees.total },
       ],
       trend,
       categoryExpenses,
@@ -87,6 +93,37 @@ export class DashboardService {
     };
   }
 
+  private async transferFeeTotals(userId: string, from: Date, to: Date) {
+    const rows = await this.transfers.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          fee: { $gt: 0 },
+          transferDate: { $gte: from, $lte: to },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$fee' }, count: { $sum: 1 } } },
+    ]);
+
+    return rows[0] ?? { total: 0, count: 0 };
+  }
+
+  private async loanExposure(userId: string) {
+    const rows = await this.loans.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+        },
+      },
+      { $group: { _id: '$direction', total: { $sum: '$amount' } } },
+    ]);
+
+    return {
+      borrowed: rows.find((row) => row._id === LoanDirection.BORROWED)?.total ?? 0,
+      lent: rows.find((row) => row._id === LoanDirection.LENT)?.total ?? 0,
+    };
+  }
+
   private async accountTotals(userId: string) {
     const rows = await this.accounts.aggregate([
       { $match: { userId: new Types.ObjectId(userId), isActive: true } },
@@ -95,7 +132,8 @@ export class DashboardService {
     return rows[0] ?? { totalBalance: 0, accounts: 0 };
   }
 
-  private async trend(userId: string, from: Date, to: Date) {
+  private async trend(userId: string, from: Date, to: Date, period: RangePreset) {
+    const bucketFormat = period === 'yearly' ? '%Y-%m' : '%Y-%m-%d';
     const rows = await this.transactions.aggregate([
       {
         $match: {
@@ -106,10 +144,28 @@ export class DashboardService {
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$transactionDate' } },
+            date: { $dateToString: { format: bucketFormat, date: '$transactionDate' } },
             type: '$type',
           },
           total: { $sum: '$amount' },
+        },
+      },
+      { $sort: { '_id.date': 1 } },
+    ]);
+    const transferRows = await this.transfers.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          fee: { $gt: 0 },
+          transferDate: { $gte: from, $lte: to },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: bucketFormat, date: '$transferDate' } },
+          },
+          total: { $sum: '$fee' },
         },
       },
       { $sort: { '_id.date': 1 } },
@@ -127,7 +183,19 @@ export class DashboardService {
       }
       byDate.set(date, current);
     }
-    return Array.from(byDate.values());
+    for (const row of transferRows) {
+      const date = row._id.date;
+      const current = byDate.get(date) ?? { date, income: 0, expense: 0 };
+      current.expense += row.total;
+      byDate.set(date, current);
+    }
+
+    const buckets =
+      period === 'yearly'
+        ? eachMonthOfInterval({ start: from, end: to }).map((date) => format(date, 'yyyy-MM'))
+        : eachDayOfInterval({ start: from, end: to }).map((date) => format(date, 'yyyy-MM-dd'));
+
+    return buckets.map((date) => byDate.get(date) ?? { date, income: 0, expense: 0 });
   }
 
   private async categoryExpenseTotals(userId: string, from: Date, to: Date) {
@@ -144,20 +212,31 @@ export class DashboardService {
     ]);
 
     const categories = await this.categories.find({ userId, type: CategoryType.EXPENSE }).lean();
-    return rows.map((row) => ({
+    const transferFees = await this.transferFeeTotals(userId, from, to);
+    const items = rows.map((row) => ({
       categoryId: row._id.toString(),
       name: categories.find((category) => category._id.toString() === row._id.toString())?.name ?? 'Uncategorized',
       value: row.total,
       count: row.count,
     }));
+
+    if (transferFees.total > 0) {
+      items.push({
+        categoryId: 'transfer-fee',
+        name: 'Transfer Fee',
+        value: transferFees.total,
+        count: transferFees.count,
+      });
+    }
+
+    return items.sort((a, b) => b.value - a.value);
   }
 
-  private async loanPeopleSummary(userId: string, from: Date, to: Date) {
+  private async loanPeopleSummary(userId: string) {
     const rows = await this.loans.aggregate([
       {
         $match: {
           userId: new Types.ObjectId(userId),
-          loanDate: { $gte: from, $lte: to },
         },
       },
       {

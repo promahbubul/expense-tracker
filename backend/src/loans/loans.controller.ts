@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { JwtUser } from '../common/types';
+import { JwtUser, LoanDirection } from '../common/types';
 import { CreateLoanDto, CreateLoanPersonDto, UpdateLoanDto, UpdateLoanPersonDto } from './dto/loan.dto';
 import { LoansService } from './loans.service';
 
@@ -31,8 +31,14 @@ export class LoansController {
   }
 
   @Get('loads')
-  listLoans(@CurrentUser() user: JwtUser, @Query('from') from?: string, @Query('to') to?: string) {
-    return this.loans.listLoans(user, from, to);
+  listLoans(
+    @CurrentUser() user: JwtUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('personId') personId?: string,
+    @Query('direction') direction?: LoanDirection,
+  ) {
+    return this.loans.listLoans(user, from, to, personId, direction);
   }
 
   @Post('loads')

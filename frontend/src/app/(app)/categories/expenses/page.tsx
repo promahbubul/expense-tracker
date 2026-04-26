@@ -1,5 +1,5 @@
-import { CategoryManager } from '@/components/CategoryManager';
+import { redirect } from 'next/navigation';
 
 export default function ExpenseCategoriesPage() {
-  return <CategoryManager type="EXPENSE" title="Expense Categories" />;
+  redirect('/categories');
 }

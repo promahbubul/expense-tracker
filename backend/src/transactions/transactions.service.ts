@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { endOfDay, startOfDay } from 'date-fns';
 import { Model } from 'mongoose';
 import { AccountsService } from '../accounts/accounts.service';
 import { Category } from '../categories/category.schema';
 import { CategoryType, JwtUser, TransactionType } from '../common/types';
+import { buildDateFilter, parseDateInput } from '../common/utils/date-range';
 import { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 import { Transaction } from './transaction.schema';
 
@@ -18,17 +18,15 @@ export class TransactionsService {
 
   list(type: TransactionType, user: JwtUser, from?: string, to?: string) {
     const filter: Record<string, unknown> = { userId: user.sub, type };
-    if (from || to) {
-      filter.transactionDate = {
-        ...(from ? { $gte: startOfDay(new Date(from)) } : {}),
-        ...(to ? { $lte: endOfDay(new Date(to)) } : {}),
-      };
+    const dateFilter = buildDateFilter(from, to);
+    if (dateFilter) {
+      filter.transactionDate = dateFilter;
     }
     return this.transactions
       .find(filter)
       .populate('categoryId', 'name type')
       .populate('accountId', 'name number')
-      .sort({ transactionDate: -1 })
+      .sort({ transactionDate: -1, createdAt: -1, _id: -1 })
       .lean();
   }
 
@@ -39,7 +37,7 @@ export class TransactionsService {
       ...dto,
       type,
       userId: user.sub,
-      transactionDate: new Date(dto.transactionDate),
+      transactionDate: parseDateInput(dto.transactionDate) ?? new Date(dto.transactionDate),
     });
   }
 
@@ -58,7 +56,7 @@ export class TransactionsService {
       await this.accounts.adjustBalance(nextAccountId, user.sub, this.effect(type, nextAmount));
       current.set({
         ...dto,
-        transactionDate: dto.transactionDate ? new Date(dto.transactionDate) : current.transactionDate,
+        transactionDate: dto.transactionDate ? (parseDateInput(dto.transactionDate) ?? new Date(dto.transactionDate)) : current.transactionDate,
       });
       await current.save();
       return this.transactions

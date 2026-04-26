@@ -1,14 +1,19 @@
 'use client';
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Loan, LoanPerson } from '@/lib/types';
 
-function refId(value: Loan['accountId']) {
+function refId(value: Loan['accountId'] | Loan['personId']) {
   return typeof value === 'string' ? value : value._id;
+}
+
+function directionLabel(direction: Loan['direction']) {
+  return direction === 'LENT' ? 'Given' : 'Taken';
 }
 
 function dateInput(value?: string) {
@@ -23,12 +28,16 @@ export default function LoanLoadsPage() {
   const [editing, setEditing] = useState<Loan | null>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [personId, setPersonId] = useState('all');
+  const [directionFilter, setDirectionFilter] = useState<'all' | 'LENT' | 'BORROWED'>('all');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (personId !== 'all') params.set('personId', personId);
+    if (directionFilter !== 'all') params.set('direction', directionFilter);
     const suffix = params.toString() ? `?${params}` : '';
     const [loanRows, personRows, accountRows] = await Promise.all([
       http.get<Loan[]>(`/loan/loads${suffix}`),
@@ -38,11 +47,21 @@ export default function LoanLoadsPage() {
     setItems(loanRows);
     setPeople(personRows);
     setAccounts(accountRows);
-  }, [from, to]);
+  }, [directionFilter, from, personId, to]);
 
   useEffect(() => {
     load().catch(console.error);
   }, [load]);
+
+  const summary = useMemo(() => {
+    const given = items.filter((item) => item.direction === 'LENT').reduce((sum, item) => sum + item.amount, 0);
+    const taken = items.filter((item) => item.direction === 'BORROWED').reduce((sum, item) => sum + item.amount, 0);
+    return {
+      given,
+      taken,
+      net: given - taken,
+    };
+  }, [items]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,90 +98,117 @@ export default function LoanLoadsPage() {
     await load();
   }
 
+  function clearFilters() {
+    setFrom('');
+    setTo('');
+    setPersonId('all');
+    setDirectionFilter('all');
+  }
+
   return (
     <>
-      <div className="pageTools">
-        <button
-          className="button"
-          type="button"
-          onClick={() => {
-            setEditing(null);
-            setOpen(true);
-          }}
-        >
-          <Plus size={17} />
-          Add Loan
-        </button>
+      <div className="toolbarBar">
+        <div className="toolbar toolbarMain">
+          <div className="field">
+            <label>Person</label>
+            <select value={personId} onChange={(event) => setPersonId(event.target.value)}>
+              <option value="all">All people</option>
+              {people.map((person) => (
+                <option key={person._id} value={person._id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Type</label>
+            <select value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value as 'all' | 'LENT' | 'BORROWED')}>
+              <option value="all">All types</option>
+              <option value="LENT">Given</option>
+              <option value="BORROWED">Taken</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>From</label>
+            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          </div>
+          <div className="field">
+            <label>To</label>
+            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          </div>
+          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
+            Filter
+          </button>
+          <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to && personId === 'all' && directionFilter === 'all'}>
+            Clear
+          </button>
+        </div>
+        <div className="toolbarActions">
+          <button
+            className="button"
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            <Plus size={17} />
+            Add Loan
+          </button>
+        </div>
       </div>
 
-      <div className="toolbar">
-        <div className="field">
-          <label>From</label>
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </div>
-        <div className="field">
-          <label>To</label>
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        </div>
-        <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
-          Filter
-        </button>
-      </div>
+      <section className="metricGrid">
+        <article className="metricCard">
+          <span>Given</span>
+          <strong className="amountExpense">{money(summary.given)}</strong>
+        </article>
+        <article className="metricCard">
+          <span>Taken</span>
+          <strong className="amountIncome">{money(summary.taken)}</strong>
+        </article>
+        <article className="metricCard">
+          <span>Net Position</span>
+          <strong className={summary.net >= 0 ? 'amountIncome' : 'amountExpense'}>{money(Math.abs(summary.net))}</strong>
+        </article>
+      </section>
 
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Account</th>
-              <th>Type</th>
-              <th>Date</th>
-              <th>Purpose</th>
-              <th>Amount</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item._id}>
-                <td>{refName(item.personId)}</td>
-                <td>{refName(item.accountId)}</td>
-                <td>
-                  <span className="badge">{item.direction}</span>
-                </td>
-                <td>{shortDate(item.loanDate)}</td>
-                <td>{item.purpose}</td>
-                <td className={item.direction === 'BORROWED' ? 'amountIncome' : 'amountExpense'}>{money(item.amount)}</td>
-                <td>
-                  <div className="actions">
-                    <button
-                      className="iconButton"
-                      type="button"
-                      onClick={() => {
-                        setEditing(item);
-                        setOpen(true);
-                      }}
-                      aria-label="Edit"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!items.length ? (
-              <tr>
-                <td colSpan={7} className="muted">
-                  No loans found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={items}
+        columns={['Person', 'Account', 'Type', 'Date', 'Purpose', 'Amount', 'Action']}
+        colSpan={7}
+        emptyMessage="No loans found for this filter."
+        renderRow={(item) => (
+          <tr key={item._id}>
+            <td>{refName(item.personId)}</td>
+            <td>{refName(item.accountId)}</td>
+            <td>
+              <span className="badge">{directionLabel(item.direction)}</span>
+            </td>
+            <td>{shortDate(item.loanDate)}</td>
+            <td>{item.purpose}</td>
+            <td className={item.direction === 'BORROWED' ? 'amountIncome' : 'amountExpense'}>{money(item.amount)}</td>
+            <td>
+              <div className="actions">
+                <button
+                  className="iconButton"
+                  type="button"
+                  onClick={() => {
+                    setEditing(item);
+                    setOpen(true);
+                  }}
+                  aria-label="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      />
 
       <Modal
         open={open}
@@ -209,8 +255,8 @@ export default function LoanLoadsPage() {
           <div className="field">
             <label>Type</label>
             <select name="direction" defaultValue={editing?.direction ?? 'LENT'} required>
-              <option value="LENT">Lent</option>
-              <option value="BORROWED">Borrowed</option>
+              <option value="LENT">Given</option>
+              <option value="BORROWED">Taken</option>
             </select>
           </div>
           <div className="field">

@@ -4,7 +4,6 @@ import clsx from 'clsx';
 import {
   Banknote,
   BarChart3,
-  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   FolderTree,
@@ -33,8 +32,7 @@ const nav: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/expenses', label: 'Expenses', icon: ReceiptText },
   { href: '/incomes', label: 'Incomes', icon: CircleDollarSign },
-  { href: '/categories/income', label: 'Income Categories', icon: FolderTree },
-  { href: '/categories/expenses', label: 'Expense Categories', icon: FolderTree },
+  { href: '/categories', label: 'Categories', icon: FolderTree },
   { href: '/accounts', label: 'Accounts', icon: WalletCards },
   { href: '/loan/accounts', label: 'Loan Contacts', icon: Users },
   { href: '/loan/loads', label: 'Loans', icon: Banknote },
@@ -127,7 +125,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-label="Open profile menu"
               >
                 <span className="topbarAvatar">{userInitial}</span>
-                <ChevronDown size={16} />
               </button>
 
               {menuOpen ? (

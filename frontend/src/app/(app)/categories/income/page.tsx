@@ -1,5 +1,5 @@
-import { CategoryManager } from '@/components/CategoryManager';
+import { redirect } from 'next/navigation';
 
 export default function IncomeCategoriesPage() {
-  return <CategoryManager type="INCOME" title="Income Categories" />;
+  redirect('/categories?type=income');
 }

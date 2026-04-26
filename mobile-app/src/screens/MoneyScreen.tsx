@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { Button, Card, Chip, EmptyState, Field, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet } from '../components/ui';
 import { api } from '../services/api';
 import { Account, Category, Transaction } from '../types';
-import { dateLabel, money, refName } from '../utils/format';
+import { dateInputValue, dateLabel, money, refName } from '../utils/format';
 
 type Mode = 'expenses' | 'incomes';
 
@@ -17,19 +17,27 @@ export function MoneyScreen() {
   const [amount, setAmount] = useState('');
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [entryDate, setEntryDate] = useState(dateInputValue());
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [error, setError] = useState('');
 
-  async function load() {
+  async function load(nextFrom: string = from, nextTo: string = to) {
     const type = mode === 'expenses' ? 'EXPENSE' : 'INCOME';
+    const params = new URLSearchParams();
+    if (nextFrom) params.set('from', nextFrom);
+    if (nextTo) params.set('to', nextTo);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
     const [rows, accountRows, categoryRows] = await Promise.all([
-      api<Transaction[]>(`/${mode}`),
+      api<Transaction[]>(`/${mode}${suffix}`),
       api<Account[]>('/accounts'),
       api<Category[]>(`/categories?type=${type}`),
     ]);
     setItems(rows);
     setAccounts(accountRows);
     setCategories(categoryRows);
-    setAccountId(accountRows[0]?._id ?? '');
-    setCategoryId(categoryRows[0]?._id ?? '');
+    setAccountId((current) => current || accountRows[0]?._id || '');
+    setCategoryId((current) => current || categoryRows[0]?._id || '');
   }
 
   useEffect(() => {
@@ -37,20 +45,32 @@ export function MoneyScreen() {
   }, [mode]);
 
   async function save() {
-    await api(`/${mode}`, {
-      method: 'POST',
-      body: {
-        description,
-        amount: Number(amount),
-        accountId,
-        categoryId,
-        transactionDate: new Date().toISOString(),
-      },
-    });
-    setDescription('');
-    setAmount('');
-    setOpen(false);
-    await load();
+    setError('');
+    try {
+      await api(`/${mode}`, {
+        method: 'POST',
+        body: {
+          description,
+          amount: Number(amount),
+          accountId,
+          categoryId,
+          transactionDate: entryDate,
+        },
+      });
+      setDescription('');
+      setAmount('');
+      setEntryDate(dateInputValue());
+      setOpen(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed');
+    }
+  }
+
+  function clearFilters() {
+    setFrom('');
+    setTo('');
+    load('', '').catch(console.error);
   }
 
   return (
@@ -69,6 +89,21 @@ export function MoneyScreen() {
           { value: 'incomes', label: 'Incomes' },
         ]}
       />
+
+      <Card>
+        <SectionTitle title="Filter" />
+        <Field label="From" value={from} onChangeText={setFrom} placeholder="YYYY-MM-DD" />
+        <Field label="To" value={to} onChangeText={setTo} placeholder="YYYY-MM-DD" />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Button label="Apply" ghost onPress={() => load().catch(console.error)} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label="Clear" ghost onPress={clearFilters} disabled={!from && !to} />
+          </View>
+        </View>
+      </Card>
+
       <Card>
         {items.length ? (
           items.map((item) => (
@@ -88,6 +123,7 @@ export function MoneyScreen() {
       <Sheet visible={open} title={`Add ${mode === 'expenses' ? 'Expense' : 'Income'}`} onClose={() => setOpen(false)}>
         <Field label="Description" value={description} onChangeText={setDescription} />
         <Field label="Amount" value={amount} onChangeText={setAmount} numeric />
+        <Field label="Date" value={entryDate} onChangeText={setEntryDate} placeholder="YYYY-MM-DD" />
         <SectionTitle title="Account" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -104,7 +140,8 @@ export function MoneyScreen() {
             ))}
           </View>
         </ScrollView>
-        <Button label="Save" onPress={save} />
+        {error ? <EmptyState title={error} /> : null}
+        <Button label="Save" onPress={save} disabled={!description || !amount || !accountId || !categoryId || !entryDate} />
       </Sheet>
     </Screen>
   );

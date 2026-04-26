@@ -66,7 +66,7 @@ export function Row({ title, subtitle, amount, danger }: { title: string; subtit
           {title}
         </Text>
         {subtitle ? (
-          <Text style={styles.rowSub} numberOfLines={1}>
+          <Text style={styles.rowSub} numberOfLines={2}>
             {subtitle}
           </Text>
         ) : null}
@@ -89,9 +89,26 @@ export function EmptyState({ title, subtitle }: { title: string; subtitle?: stri
   );
 }
 
-export function Button({ label, onPress, ghost, compact }: { label: string; onPress: () => void; ghost?: boolean; compact?: boolean }) {
+export function Button({
+  label,
+  onPress,
+  ghost,
+  compact,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  ghost?: boolean;
+  compact?: boolean;
+  disabled?: boolean;
+}) {
   return (
-    <TouchableOpacity style={[styles.button, ghost && styles.ghost, compact && styles.buttonCompact]} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity
+      style={[styles.button, ghost && styles.ghost, compact && styles.buttonCompact, disabled && styles.buttonDisabled]}
+      onPress={onPress}
+      activeOpacity={0.9}
+      disabled={disabled}
+    >
       <Text style={[styles.buttonText, ghost && styles.ghostText, compact && styles.buttonTextCompact]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -291,6 +308,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#efe6d8',
     shadowOpacity: 0,
     elevation: 0,
+  },
+  buttonDisabled: {
+    opacity: 0.56,
   },
   ghostText: { color: '#1f2430' },
   field: { gap: 7, marginBottom: 14 },

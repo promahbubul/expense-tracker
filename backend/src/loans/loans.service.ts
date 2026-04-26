@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { endOfDay, startOfDay } from 'date-fns';
 import { Model } from 'mongoose';
 import { AccountsService } from '../accounts/accounts.service';
 import { JwtUser, LoanDirection } from '../common/types';
+import { buildDateFilter, parseDateInput } from '../common/utils/date-range';
 import { CreateLoanDto, CreateLoanPersonDto, UpdateLoanDto, UpdateLoanPersonDto } from './dto/loan.dto';
 import { LoanPerson } from './loan-person.schema';
 import { Loan } from './loan.schema';
@@ -40,19 +40,23 @@ export class LoansService {
     return { success: true };
   }
 
-  listLoans(user: JwtUser, from?: string, to?: string) {
+  listLoans(user: JwtUser, from?: string, to?: string, personId?: string, direction?: LoanDirection) {
     const filter: Record<string, unknown> = { userId: user.sub };
-    if (from || to) {
-      filter.loanDate = {
-        ...(from ? { $gte: startOfDay(new Date(from)) } : {}),
-        ...(to ? { $lte: endOfDay(new Date(to)) } : {}),
-      };
+    const dateFilter = buildDateFilter(from, to);
+    if (dateFilter) {
+      filter.loanDate = dateFilter;
+    }
+    if (personId) {
+      filter.personId = personId;
+    }
+    if (direction) {
+      filter.direction = direction;
     }
     return this.loans
       .find(filter)
       .populate('personId', 'name phone')
       .populate('accountId', 'name number')
-      .sort({ loanDate: -1 })
+      .sort({ loanDate: -1, createdAt: -1, _id: -1 })
       .lean();
   }
 
@@ -62,7 +66,7 @@ export class LoansService {
     return this.loans.create({
       ...dto,
       userId: user.sub,
-      loanDate: new Date(dto.loanDate),
+      loanDate: parseDateInput(dto.loanDate) ?? new Date(dto.loanDate),
     });
   }
 
@@ -82,7 +86,7 @@ export class LoansService {
       await this.accounts.adjustBalance(nextAccountId, user.sub, this.effect(nextDirection, nextAmount));
       current.set({
         ...dto,
-        loanDate: dto.loanDate ? new Date(dto.loanDate) : current.loanDate,
+        loanDate: dto.loanDate ? (parseDateInput(dto.loanDate) ?? new Date(dto.loanDate)) : current.loanDate,
       });
       await current.save();
       return this.loans

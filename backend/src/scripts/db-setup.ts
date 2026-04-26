@@ -8,6 +8,7 @@ import { Category, CategorySchema } from '../categories/category.schema';
 import { CategoryType } from '../common/types';
 import { LoanPerson, LoanPersonSchema } from '../loans/loan-person.schema';
 import { Loan, LoanSchema } from '../loans/loan.schema';
+import { Transfer, TransferSchema } from '../transfers/transfer.schema';
 import { Transaction, TransactionSchema } from '../transactions/transaction.schema';
 import { User, UserSchema } from '../users/user.schema';
 
@@ -18,6 +19,7 @@ type AppModels = {
   TransactionModel: Model<Transaction>;
   LoanModel: Model<Loan>;
   LoanPersonModel: Model<LoanPerson>;
+  TransferModel: Model<Transfer>;
 };
 
 type Migration = {
@@ -73,6 +75,7 @@ function getModels(): AppModels {
     TransactionModel: mongoose.models[Transaction.name] as Model<Transaction> ?? mongoose.model(Transaction.name, TransactionSchema),
     LoanModel: mongoose.models[Loan.name] as Model<Loan> ?? mongoose.model(Loan.name, LoanSchema),
     LoanPersonModel: mongoose.models[LoanPerson.name] as Model<LoanPerson> ?? mongoose.model(LoanPerson.name, LoanPersonSchema),
+    TransferModel: mongoose.models[Transfer.name] as Model<Transfer> ?? mongoose.model(Transfer.name, TransferSchema),
   };
 }
 
@@ -84,6 +87,7 @@ async function syncAllIndexes(models: AppModels) {
     ['transactions', models.TransactionModel as unknown as Model<unknown>],
     ['loans', models.LoanModel as unknown as Model<unknown>],
     ['loan-people', models.LoanPersonModel as unknown as Model<unknown>],
+    ['transfers', models.TransferModel as unknown as Model<unknown>],
   ];
 
   for (const [label, model] of pairs) {

@@ -11,7 +11,7 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get('summary')
-  summary(@CurrentUser() user: JwtUser, @Query('period') period?: RangePreset) {
-    return this.dashboard.summary(user, period);
+  summary(@CurrentUser() user: JwtUser, @Query('period') period?: RangePreset, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.dashboard.summary(user, period, from, to);
   }
 }
