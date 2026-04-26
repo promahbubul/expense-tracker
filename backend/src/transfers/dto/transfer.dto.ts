@@ -4,6 +4,10 @@ export class CreateTransferDto {
   @IsString()
   fromAccountId!: string;
 
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
+
   @IsString()
   toAccountId!: string;
 
@@ -24,6 +28,10 @@ export class CreateTransferDto {
 }
 
 export class UpdateTransferDto {
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   fromAccountId?: string;

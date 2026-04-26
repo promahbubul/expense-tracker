@@ -12,6 +12,8 @@ type DataTableProps<T> = {
   emptyMessage: string;
   renderRow: (row: T, index: number) => ReactNode;
   initialPageSize?: (typeof pageSizeOptions)[number];
+  loading?: boolean;
+  loadingMessage?: string;
 };
 
 export function DataTable<T>({
@@ -21,6 +23,8 @@ export function DataTable<T>({
   emptyMessage,
   renderRow,
   initialPageSize = 20,
+  loading = false,
+  loadingMessage = 'Loading data...',
 }: DataTableProps<T>) {
   const [pageSize, setPageSize] = useState<number>(initialPageSize);
   const [page, setPage] = useState(1);
@@ -57,7 +61,16 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.length ? (
+            {loading ? (
+              <tr>
+                <td colSpan={colSpan}>
+                  <div className="tableLoading">
+                    <span className="loadingSpinner" aria-hidden="true" />
+                    <span>{loadingMessage}</span>
+                  </div>
+                </td>
+              </tr>
+            ) : visibleRows.length ? (
               visibleRows.map((row, index) => renderRow(row, index))
             ) : (
               <tr>

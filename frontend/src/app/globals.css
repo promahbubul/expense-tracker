@@ -396,6 +396,21 @@ button {
   gap: 6px;
 }
 
+.loadingSpinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(37, 99, 235, 0.18);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: loading-spin 0.8s linear infinite;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .periodTabs {
   display: inline-flex;
   align-items: center;
@@ -983,6 +998,16 @@ td[colspan] {
 .dataTable {
   display: grid;
   gap: 12px;
+}
+
+.tableLoading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .tablePagination {

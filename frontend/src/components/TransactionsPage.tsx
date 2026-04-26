@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Category, CategoryType, Transaction } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 type Props = {
   endpoint: 'expenses' | 'incomes';
@@ -31,27 +32,31 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const amountClass = categoryType === 'INCOME' ? 'amountIncome' : 'amountExpense';
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    const suffix = params.toString() ? `?${params}` : '';
-    const [records, accountRows, categoryRows] = await Promise.all([
-      http.get<Transaction[]>(`/${endpoint}${suffix}`),
-      http.get<Account[]>('/accounts'),
-      http.get<Category[]>(`/categories?type=${categoryType}`),
-    ]);
-    setItems(records);
-    setAccounts(accountRows);
-    setCategories(categoryRows);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const suffix = params.toString() ? `?${params}` : '';
+      const [records, accountRows, categoryRows] = await Promise.all([
+        http.get<Transaction[]>(`/${endpoint}${suffix}`),
+        http.get<Account[]>('/accounts'),
+        http.get<Category[]>(`/categories?type=${categoryType}`),
+      ]);
+      setItems(records);
+      setAccounts(accountRows);
+      setCategories(categoryRows);
+    } finally {
+      setLoading(false);
+    }
   }, [categoryType, endpoint, from, to]);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   const modalTitle = useMemo(() => `${editing ? 'Edit' : 'Add'} ${title.slice(0, -1)}`, [editing, title]);
 
@@ -116,7 +121,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
             <label>To</label>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
-          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)}>
+          <button className="ghostButton" type="button" onClick={() => load().catch(console.error)} disabled={loading}>
             Filter
           </button>
           <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to}>
@@ -133,6 +138,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
 
       <DataTable
         rows={items}
+        loading={loading}
         columns={['Description', 'Category', 'Account', 'Date', 'Amount', 'Action']}
         colSpan={6}
         emptyMessage="No records found."

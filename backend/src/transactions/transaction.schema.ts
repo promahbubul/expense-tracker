@@ -10,6 +10,8 @@ export type TransactionDocument = HydratedDocument<Transaction>;
 @Schema({ timestamps: true })
 export class Transaction {
   _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({ required: true, trim: true })
   description!: string;
@@ -29,9 +31,13 @@ export class Transaction {
   @Prop({ type: String, required: true, enum: TransactionType, index: true })
   type!: TransactionType;
 
+  @Prop({ trim: true })
+  clientRequestId?: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
   userId!: Types.ObjectId;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
 TransactionSchema.index({ userId: 1, type: 1, transactionDate: -1 });
+TransactionSchema.index({ userId: 1, clientRequestId: 1 }, { unique: true, sparse: true });

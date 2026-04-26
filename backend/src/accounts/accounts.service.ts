@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtUser } from '../common/types';
+import { assertNotStale } from '../common/utils/optimistic-lock';
 import { Account } from './account.schema';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
@@ -14,6 +15,13 @@ export class AccountsService {
   }
 
   async create(dto: CreateAccountDto, user: JwtUser) {
+    if (dto.clientRequestId) {
+      const existing = await this.accounts.findOne({ userId: user.sub, clientRequestId: dto.clientRequestId }).lean();
+      if (existing) {
+        return existing;
+      }
+    }
+
     const initialBalance = dto.initialBalance ?? 0;
     return this.accounts.create({
       ...dto,
@@ -24,18 +32,27 @@ export class AccountsService {
   }
 
   async update(id: string, dto: UpdateAccountDto, user: JwtUser) {
-    const account = await this.accounts.findOneAndUpdate({ _id: id, userId: user.sub }, dto, { new: true }).lean();
+    const account = await this.accounts.findOne({ _id: id, userId: user.sub });
     if (!account) {
       throw new NotFoundException('Account not found');
     }
-    return account;
+
+    const { expectedUpdatedAt, ...changes } = dto;
+    assertNotStale(account.updatedAt, expectedUpdatedAt);
+    account.set(changes);
+    await account.save();
+    return this.accounts.findById(account._id).lean();
   }
 
-  async remove(id: string, user: JwtUser) {
-    const account = await this.accounts.findOneAndUpdate({ _id: id, userId: user.sub }, { isActive: false });
+  async remove(id: string, user: JwtUser, expectedUpdatedAt?: string) {
+    const account = await this.accounts.findOne({ _id: id, userId: user.sub });
     if (!account) {
       throw new NotFoundException('Account not found');
     }
+
+    assertNotStale(account.updatedAt, expectedUpdatedAt);
+    account.set({ isActive: false });
+    await account.save();
     return { success: true };
   }
 

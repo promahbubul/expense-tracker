@@ -1,12 +1,13 @@
 'use client';
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Loan, LoanPerson } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function refId(value: Loan['accountId'] | Loan['personId']) {
   return typeof value === 'string' ? value : value._id;
@@ -31,27 +32,31 @@ export default function LoanLoadsPage() {
   const [personId, setPersonId] = useState('all');
   const [directionFilter, setDirectionFilter] = useState<'all' | 'LENT' | 'BORROWED'>('all');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (personId !== 'all') params.set('personId', personId);
-    if (directionFilter !== 'all') params.set('direction', directionFilter);
-    const suffix = params.toString() ? `?${params}` : '';
-    const [loanRows, personRows, accountRows] = await Promise.all([
-      http.get<Loan[]>(`/loan/loads${suffix}`),
-      http.get<LoanPerson[]>('/loan/accounts'),
-      http.get<Account[]>('/accounts'),
-    ]);
-    setItems(loanRows);
-    setPeople(personRows);
-    setAccounts(accountRows);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (personId !== 'all') params.set('personId', personId);
+      if (directionFilter !== 'all') params.set('direction', directionFilter);
+      const suffix = params.toString() ? `?${params}` : '';
+      const [loanRows, personRows, accountRows] = await Promise.all([
+        http.get<Loan[]>(`/loan/loads${suffix}`),
+        http.get<LoanPerson[]>('/loan/accounts'),
+        http.get<Account[]>('/accounts'),
+      ]);
+      setItems(loanRows);
+      setPeople(personRows);
+      setAccounts(accountRows);
+    } finally {
+      setLoading(false);
+    }
   }, [directionFilter, from, personId, to]);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   const summary = useMemo(() => {
     const given = items.filter((item) => item.direction === 'LENT').reduce((sum, item) => sum + item.amount, 0);
@@ -173,9 +178,10 @@ export default function LoanLoadsPage() {
         </article>
       </section>
 
-      <DataTable
-        rows={items}
-        columns={['Person', 'Account', 'Type', 'Date', 'Purpose', 'Amount', 'Action']}
+        <DataTable
+          rows={items}
+          loading={loading}
+          columns={['Person', 'Account', 'Type', 'Date', 'Purpose', 'Amount', 'Action']}
         colSpan={7}
         emptyMessage="No loans found for this filter."
         renderRow={(item) => (

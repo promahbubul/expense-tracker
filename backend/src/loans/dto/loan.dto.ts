@@ -7,6 +7,10 @@ export class CreateLoanPersonDto {
 
   @IsOptional()
   @IsString()
+  clientRequestId?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @IsOptional()
@@ -19,6 +23,10 @@ export class CreateLoanPersonDto {
 }
 
 export class UpdateLoanPersonDto {
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   name?: string;
@@ -40,6 +48,10 @@ export class CreateLoanDto {
   @IsString()
   personId!: string;
 
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
+
   @IsString()
   accountId!: string;
 
@@ -58,6 +70,10 @@ export class CreateLoanDto {
 }
 
 export class UpdateLoanDto {
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   personId?: string;

@@ -8,6 +8,8 @@ export type TransferDocument = HydratedDocument<Transfer>;
 @Schema({ timestamps: true })
 export class Transfer {
   _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Account.name, required: true })
   fromAccountId!: Types.ObjectId;
@@ -24,6 +26,9 @@ export class Transfer {
   @Prop({ required: true, trim: true })
   note!: string;
 
+  @Prop({ trim: true })
+  clientRequestId?: string;
+
   @Prop({ type: Date, required: true })
   transferDate!: Date;
 
@@ -33,3 +38,4 @@ export class Transfer {
 
 export const TransferSchema = SchemaFactory.createForClass(Transfer);
 TransferSchema.index({ userId: 1, transferDate: -1 });
+TransferSchema.index({ userId: 1, clientRequestId: 1 }, { unique: true, sparse: true });

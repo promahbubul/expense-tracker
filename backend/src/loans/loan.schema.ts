@@ -10,6 +10,8 @@ export type LoanDocument = HydratedDocument<Loan>;
 @Schema({ timestamps: true })
 export class Loan {
   _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: LoanPerson.name, required: true })
   personId!: Types.ObjectId;
@@ -26,6 +28,9 @@ export class Loan {
   @Prop({ required: true, trim: true })
   purpose!: string;
 
+  @Prop({ trim: true })
+  clientRequestId?: string;
+
   @Prop({ type: Date, required: true })
   loanDate!: Date;
 
@@ -35,3 +40,4 @@ export class Loan {
 
 export const LoanSchema = SchemaFactory.createForClass(Loan);
 LoanSchema.index({ userId: 1, loanDate: -1 });
+LoanSchema.index({ userId: 1, clientRequestId: 1 }, { unique: true, sparse: true });

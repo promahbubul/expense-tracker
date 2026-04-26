@@ -2,11 +2,12 @@
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { Category, CategoryType } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 type Props = {
   type: CategoryType;
@@ -18,14 +19,18 @@ export function CategoryManager({ type, toolbarStart }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setItems(await http.get<Category[]>(`/categories?type=${type}`));
+    setLoading(true);
+    try {
+      setItems(await http.get<Category[]>(`/categories?type=${type}`));
+    } finally {
+      setLoading(false);
+    }
   }, [type]);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,6 +77,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
 
       <DataTable
         rows={items}
+        loading={loading}
         columns={['Name', 'Type', 'Action']}
         colSpan={3}
         emptyMessage="No categories found."

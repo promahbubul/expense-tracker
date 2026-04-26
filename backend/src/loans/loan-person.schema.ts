@@ -7,6 +7,8 @@ export type LoanPersonDocument = HydratedDocument<LoanPerson>;
 @Schema({ timestamps: true })
 export class LoanPerson {
   _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({ required: true, trim: true })
   name!: string;
@@ -20,6 +22,9 @@ export class LoanPerson {
   @Prop({ trim: true })
   details?: string;
 
+  @Prop({ trim: true })
+  clientRequestId?: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
   userId!: Types.ObjectId;
 
@@ -28,3 +33,4 @@ export class LoanPerson {
 }
 
 export const LoanPersonSchema = SchemaFactory.createForClass(LoanPerson);
+LoanPersonSchema.index({ userId: 1, clientRequestId: 1 }, { unique: true, sparse: true });

@@ -1,8 +1,12 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateAccountDto {
   @IsString()
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
 
   @IsOptional()
   @IsString()
@@ -19,6 +23,10 @@ export class CreateAccountDto {
 }
 
 export class UpdateAccountDto {
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   name?: string;

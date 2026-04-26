@@ -1,11 +1,12 @@
 'use client';
 
 import { Download, Share2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { ReportStatement } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function kindLabel(kind: string) {
   return (
@@ -26,19 +27,23 @@ export default function ReportsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [statement, setStatement] = useState<ReportStatement | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams({ period, type });
-    if (period === 'custom') {
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ period, type });
+      if (period === 'custom') {
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+      }
+      setStatement(await http.get<ReportStatement>(`/reports/statement?${params}`));
+    } finally {
+      setLoading(false);
     }
-    setStatement(await http.get<ReportStatement>(`/reports/statement?${params}`));
   }, [from, period, to, type]);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   async function buildPdf() {
     const { jsPDF } = await import('jspdf');
@@ -290,6 +295,7 @@ export default function ReportsPage() {
 
       <DataTable
         rows={statement?.rows ?? []}
+        loading={loading}
         columns={['Date', 'Type', 'Description', 'Category / Person', 'Account', 'Amount']}
         colSpan={6}
         emptyMessage="No report rows found."

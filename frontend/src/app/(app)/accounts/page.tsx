@@ -1,12 +1,13 @@
 'use client';
 
 import { ArrowRightLeft, Pencil, Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Transfer } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 function refId(value: Transfer['fromAccountId'] | Transfer['toAccountId']) {
   return typeof value === 'string' ? value : value._id;
@@ -25,16 +26,20 @@ export default function AccountsPage() {
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null);
   const [accountError, setAccountError] = useState('');
   const [transferError, setTransferError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [accountRows, transferRows] = await Promise.all([http.get<Account[]>('/accounts'), http.get<Transfer[]>('/transfers')]);
-    setItems(accountRows);
-    setTransfers(transferRows);
+    setLoading(true);
+    try {
+      const [accountRows, transferRows] = await Promise.all([http.get<Account[]>('/accounts'), http.get<Transfer[]>('/transfers')]);
+      setItems(accountRows);
+      setTransfers(transferRows);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   async function submitAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,6 +150,7 @@ export default function AccountsPage() {
         </div>
         <DataTable
           rows={items}
+          loading={loading}
           columns={['Name', 'Number', 'Details', 'Initial Deposit', 'Current Balance', 'Action']}
           colSpan={6}
           emptyMessage="No accounts found."
@@ -185,6 +191,7 @@ export default function AccountsPage() {
         </div>
         <DataTable
           rows={transfers}
+          loading={loading}
           columns={['From', 'To', 'Date', 'Note', 'Amount', 'Fee', 'Total Deducted', 'Action']}
           colSpan={8}
           emptyMessage="No transfers found."

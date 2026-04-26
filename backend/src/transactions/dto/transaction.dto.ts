@@ -4,6 +4,10 @@ export class CreateTransactionDto {
   @IsString()
   description!: string;
 
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
+
   @IsString()
   categoryId!: string;
 
@@ -19,6 +23,10 @@ export class CreateTransactionDto {
 }
 
 export class UpdateTransactionDto {
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   description?: string;

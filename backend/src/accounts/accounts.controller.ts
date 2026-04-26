@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { JwtUser } from '../common/types';
@@ -26,7 +26,7 @@ export class AccountsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.accounts.remove(id, user);
+  remove(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.accounts.remove(id, user, expectedUpdatedAt);
   }
 }

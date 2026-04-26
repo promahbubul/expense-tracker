@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { AccountsService } from '../accounts/accounts.service';
 import { JwtUser } from '../common/types';
 import { buildDateFilter, parseDateInput } from '../common/utils/date-range';
+import { assertNotStale } from '../common/utils/optimistic-lock';
 import { CreateTransferDto, UpdateTransferDto } from './dto/transfer.dto';
 import { Transfer } from './transfer.schema';
 
@@ -30,6 +31,13 @@ export class TransfersService {
   }
 
   async create(dto: CreateTransferDto, user: JwtUser) {
+    if (dto.clientRequestId) {
+      const existing = await this.transfers.findOne({ userId: user.sub, clientRequestId: dto.clientRequestId }).lean();
+      if (existing) {
+        return existing;
+      }
+    }
+
     this.ensureAccountsDiffer(dto.fromAccountId, dto.toAccountId);
 
     try {
@@ -52,10 +60,12 @@ export class TransfersService {
       throw new NotFoundException('Transfer not found');
     }
 
-    const nextFromAccountId = dto.fromAccountId ?? current.fromAccountId.toString();
-    const nextToAccountId = dto.toAccountId ?? current.toAccountId.toString();
-    const nextAmount = dto.amount ?? current.amount;
-    const nextFee = dto.fee ?? current.fee ?? 0;
+    const { expectedUpdatedAt, ...changes } = dto;
+    assertNotStale(current.updatedAt, expectedUpdatedAt);
+    const nextFromAccountId = changes.fromAccountId ?? current.fromAccountId.toString();
+    const nextToAccountId = changes.toAccountId ?? current.toAccountId.toString();
+    const nextAmount = changes.amount ?? current.amount;
+    const nextFee = changes.fee ?? current.fee ?? 0;
 
     this.ensureAccountsDiffer(nextFromAccountId, nextToAccountId);
 
@@ -64,9 +74,9 @@ export class TransfersService {
     try {
       await this.applyTransfer(user.sub, nextFromAccountId, nextToAccountId, nextAmount, nextFee);
       current.set({
-        ...dto,
+        ...changes,
         fee: nextFee,
-        transferDate: dto.transferDate ? (parseDateInput(dto.transferDate) ?? new Date(dto.transferDate)) : current.transferDate,
+        transferDate: changes.transferDate ? (parseDateInput(changes.transferDate) ?? new Date(changes.transferDate)) : current.transferDate,
       });
       await current.save();
       return this.transfers.findById(current._id).populate('fromAccountId', 'name number').populate('toAccountId', 'name number').lean();
@@ -82,12 +92,13 @@ export class TransfersService {
     }
   }
 
-  async remove(id: string, user: JwtUser) {
+  async remove(id: string, user: JwtUser, expectedUpdatedAt?: string) {
     const current = await this.transfers.findOne({ _id: id, userId: user.sub });
     if (!current) {
       throw new NotFoundException('Transfer not found');
     }
 
+    assertNotStale(current.updatedAt, expectedUpdatedAt);
     await this.revertTransfer(user.sub, current.fromAccountId.toString(), current.toAccountId.toString(), current.amount, current.fee ?? 0);
     await current.deleteOne();
     return { success: true };

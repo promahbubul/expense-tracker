@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Banknote, RefreshCw, WalletCards } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -21,6 +21,7 @@ import { PeriodTabs, type PeriodValue } from '@/components/PeriodTabs';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { DashboardSummary } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 const pieColors = ['#2563eb', '#f97316'];
 
@@ -53,9 +54,10 @@ function StatTile({
   );
 }
 
-function PanelEmpty({ title }: { title: string }) {
+function PanelEmpty({ title, loading = false }: { title: string; loading?: boolean }) {
   return (
     <div className="dashboardEmpty">
+      {loading ? <span className="loadingSpinner" aria-hidden="true" /> : null}
       <AlertCircle size={18} />
       <span>{title}</span>
     </div>
@@ -116,9 +118,7 @@ export default function DashboardPage() {
     }
   }, [from, period, to]);
 
-  useEffect(() => {
-    loadSummary().catch(console.error);
-  }, [loadSummary]);
+  useLiveRefresh(loadSummary);
 
   const totals = summary?.totals;
   const categoryExpenses = summary?.categoryExpenses ?? [];
@@ -202,7 +202,7 @@ export default function DashboardPage() {
           </div>
           <div className="chartBox dashboardChartBox">
             {loading ? (
-              <PanelEmpty title="Loading data..." />
+              <PanelEmpty title="Loading data..." loading />
             ) : hasTrendData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={transactionTrend}>
@@ -228,7 +228,7 @@ export default function DashboardPage() {
           </div>
           <div className="chartBox dashboardChartBox">
             {loading ? (
-              <PanelEmpty title="Loading data..." />
+              <PanelEmpty title="Loading data..." loading />
             ) : hasCompareData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -254,7 +254,7 @@ export default function DashboardPage() {
           </div>
           <div className="chartBox dashboardChartBox">
             {loading ? (
-              <PanelEmpty title="Loading data..." />
+              <PanelEmpty title="Loading data..." loading />
             ) : hasExpenseData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={categoryExpenses}>
@@ -311,7 +311,7 @@ export default function DashboardPage() {
           </div>
 
           {loading ? (
-            <PanelEmpty title="Loading data..." />
+            <PanelEmpty title="Loading data..." loading />
           ) : hasLoanData ? (
             <div className="dashboardList">
               {loanPeople.slice(0, 5).map((person) => (

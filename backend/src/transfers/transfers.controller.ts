@@ -26,7 +26,7 @@ export class TransfersController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.transfers.remove(id, user);
+  remove(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.transfers.remove(id, user, expectedUpdatedAt);
   }
 }

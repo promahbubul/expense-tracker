@@ -1,25 +1,30 @@
 'use client';
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { http } from '@/lib/api';
 import type { LoanPerson } from '@/lib/types';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 
 export default function LoanAccountsPage() {
   const [items, setItems] = useState<LoanPerson[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LoanPerson | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setItems(await http.get<LoanPerson[]>('/loan/accounts'));
+    setLoading(true);
+    try {
+      setItems(await http.get<LoanPerson[]>('/loan/accounts'));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    load().catch(console.error);
-  }, [load]);
+  useLiveRefresh(load);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,6 +77,7 @@ export default function LoanAccountsPage() {
 
       <DataTable
         rows={items}
+        loading={loading}
         columns={['Name', 'Phone', 'Address', 'Details', 'Action']}
         colSpan={5}
         emptyMessage="No loan accounts found."

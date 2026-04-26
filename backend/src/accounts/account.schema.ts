@@ -7,6 +7,8 @@ export type AccountDocument = HydratedDocument<Account>;
 @Schema({ timestamps: true })
 export class Account {
   _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({ required: true, trim: true })
   name!: string;
@@ -23,6 +25,9 @@ export class Account {
   @Prop({ type: Number, default: 0 })
   currentBalance!: number;
 
+  @Prop({ trim: true })
+  clientRequestId?: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
   userId!: Types.ObjectId;
 
@@ -31,3 +36,4 @@ export class Account {
 }
 
 export const AccountSchema = SchemaFactory.createForClass(Account);
+AccountSchema.index({ userId: 1, clientRequestId: 1 }, { unique: true, sparse: true });

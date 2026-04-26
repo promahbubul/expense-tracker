@@ -16,14 +16,38 @@ function isLoopbackHost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
 }
 
-function getBundleHost() {
-  const scriptUrl = NativeModules.SourceCode?.scriptURL as string | undefined;
-  if (!scriptUrl) {
+function extractHost(value?: string | null) {
+  if (!value) {
     return null;
   }
 
-  const match = scriptUrl.match(/^https?:\/\/([^/:]+)/i);
-  return match?.[1] ?? null;
+  const trimmed = value.trim();
+  const urlMatch = trimmed.match(/^https?:\/\/([^/:]+)/i);
+  if (urlMatch?.[1]) {
+    return urlMatch[1];
+  }
+
+  const hostMatch = trimmed.match(/^([^/:]+)(?::\d+)?/);
+  return hostMatch?.[1] ?? null;
+}
+
+function getBundleHost() {
+  const candidates = [
+    NativeModules.SourceCode?.scriptURL as string | undefined,
+    NativeModules.PlatformConstants?.ServerHost as string | undefined,
+    NativeModules.ExponentConstants?.manifest?.debuggerHost as string | undefined,
+    NativeModules.ExponentConstants?.manifest2?.extra?.expoClient?.debuggerHost as string | undefined,
+    NativeModules.ExponentConstants?.experienceUrl as string | undefined,
+  ];
+
+  for (const candidate of candidates) {
+    const host = extractHost(candidate);
+    if (host) {
+      return host;
+    }
+  }
+
+  return null;
 }
 
 export function getApiBaseUrl() {

@@ -26,8 +26,8 @@ export class TransactionsController {
   }
 
   @Delete('expenses/:id')
-  removeExpense(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.transactions.remove(id, TransactionType.EXPENSE, user);
+  removeExpense(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.transactions.remove(id, TransactionType.EXPENSE, user, expectedUpdatedAt);
   }
 
   @Get('incomes')
@@ -46,7 +46,7 @@ export class TransactionsController {
   }
 
   @Delete('incomes/:id')
-  removeIncome(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.transactions.remove(id, TransactionType.INCOME, user);
+  removeIncome(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.transactions.remove(id, TransactionType.INCOME, user, expectedUpdatedAt);
   }
 }

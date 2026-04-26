@@ -26,8 +26,8 @@ export class LoansController {
   }
 
   @Delete('accounts/:id')
-  removePerson(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.loans.removePerson(id, user);
+  removePerson(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.loans.removePerson(id, user, expectedUpdatedAt);
   }
 
   @Get('loads')
@@ -52,7 +52,7 @@ export class LoansController {
   }
 
   @Delete('loads/:id')
-  removeLoan(@Param('id') id: string, @CurrentUser() user: JwtUser) {
-    return this.loans.removeLoan(id, user);
+  removeLoan(@Param('id') id: string, @Query('expectedUpdatedAt') expectedUpdatedAt: string | undefined, @CurrentUser() user: JwtUser) {
+    return this.loans.removeLoan(id, user, expectedUpdatedAt);
   }
 }
