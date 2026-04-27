@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -28,6 +28,8 @@ type GoogleUserInfo = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User.name) private readonly users: Model<User>,
     @InjectModel(Account.name) private readonly accounts: Model<Account>,
@@ -57,11 +59,27 @@ export class AuthService {
     });
 
     await this.bootstrapWorkspace(user._id.toString());
-    await this.sendVerificationEmailIfConfigured(user.email, user.name, verificationToken);
+
+    let message: string | undefined;
+    let emailDeliveryFailed = false;
+
+    if (this.isMailConfigured()) {
+      try {
+        await this.sendVerificationEmailIfConfigured(user.email, user.name, verificationToken);
+        message = 'Verification email sent. Please check your inbox.';
+      } catch (error) {
+        emailDeliveryFailed = true;
+        message = 'Account created, but verification email could not be sent right now.';
+        this.logger.warn(
+          `Verification email failed for ${user.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+    }
 
     return {
       ...this.authPayload(user),
-      message: this.isMailConfigured() ? 'Verification email sent. Please check your inbox.' : undefined,
+      emailDeliveryFailed,
+      message,
     };
   }
 
