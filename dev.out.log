@@ -1,0 +1,22 @@
+
+> expense-tracker-suite@0.1.0 dev
+> concurrently "npm run dev -w @expense-tracker/api" "npm run dev -w @expense-tracker/web"
+
+[1] 
+[1] > @expense-tracker/web@0.1.0 dev
+[1] > set npm_config_user_agent=npm&& node ./scripts/ensure-wasm-fallback.mjs && next dev
+[1] 
+[0] 
+[0] > @expense-tracker/api@0.1.0 dev
+[0] > nest start --watch
+[0] 
+[0] [2J[3J[H[[90m23:23:58[0m] Starting compilation in watch mode...
+[0] 
+[0] npm error Lifecycle script `dev` failed with error:
+[0] npm error code 1
+[0] npm error path F:\programming\project\expense-tracker\expense-tracker\backend
+[0] npm error workspace @expense-tracker/api@0.1.0
+[0] npm error location F:\programming\project\expense-tracker\expense-tracker\backend
+[0] npm error command failed
+[0] npm error command C:\WINDOWS\system32\cmd.exe /d /s /c nest start --watch
+[0] npm run dev -w @expense-tracker/api exited with code 1
