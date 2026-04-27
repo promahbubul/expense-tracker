@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon, AppIconName } from './src/components/icons';
 import { Button, Field } from './src/components/ui';
 import { AccountsScreen } from './src/screens/AccountsScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -20,13 +20,13 @@ type Tab = 'dashboard' | 'money' | 'accounts' | 'loans' | 'reports' | 'more';
 type AuthMode = 'login' | 'signup';
 const brandLogo = require('./src/assets/logo.png');
 
-const tabs: Array<{ key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { key: 'dashboard', label: 'Home', icon: 'home-outline' },
-  { key: 'money', label: 'Money', icon: 'swap-horizontal-outline' },
-  { key: 'accounts', label: 'Accounts', icon: 'wallet-outline' },
-  { key: 'loans', label: 'Loans', icon: 'people-outline' },
-  { key: 'reports', label: 'Reports', icon: 'stats-chart-outline' },
-  { key: 'more', label: 'More', icon: 'grid-outline' },
+const tabs: Array<{ key: Tab; label: string; icon: AppIconName; activeIcon: AppIconName }> = [
+  { key: 'dashboard', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { key: 'money', label: 'Money', icon: 'swap-horizontal-outline', activeIcon: 'swap-horizontal' },
+  { key: 'accounts', label: 'Accounts', icon: 'wallet-outline', activeIcon: 'wallet' },
+  { key: 'loans', label: 'Loans', icon: 'people-outline', activeIcon: 'people' },
+  { key: 'reports', label: 'Reports', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { key: 'more', label: 'More', icon: 'grid-outline', activeIcon: 'grid' },
 ];
 
 function displayNameFromEmail(email: string) {
@@ -246,11 +246,7 @@ function AppShell() {
               onPress={() => setSaveOnDevice((current) => !current)}
               activeOpacity={0.85}
             >
-              <Ionicons
-                name={saveOnDevice ? 'checkbox-outline' : 'square-outline'}
-                size={20}
-                color={saveOnDevice ? palette.primary : palette.muted}
-              />
+              <AppIcon name={saveOnDevice ? 'checkbox-outline' : 'square-outline'} size={20} color={saveOnDevice ? palette.primary : palette.muted} />
               <Text style={styles.saveOptionText}>Save on this device</Text>
             </TouchableOpacity>
 
@@ -279,7 +275,7 @@ function AppShell() {
               onPress={() => continueWithGoogle().catch(console.error)}
               ghost
               disabled={googleLoading || loading}
-              icon={<Ionicons name="logo-google" size={18} color={palette.text} />}
+              icon={<AppIcon name="logo-google" size={18} color={palette.text} />}
             />
 
             {authMode === 'login' ? (
@@ -328,11 +324,7 @@ function AppShell() {
             const active = tab === item.key;
             return (
               <TouchableOpacity key={item.key} style={styles.navItem} onPress={() => setTab(item.key)} activeOpacity={0.92}>
-                <Ionicons
-                  name={active ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
-                  size={22}
-                  color={active ? palette.primary : palette.muted}
-                />
+                <AppIcon name={active ? item.activeIcon : item.icon} size={22} color={active ? palette.primary : palette.muted} />
               </TouchableOpacity>
             );
           })}

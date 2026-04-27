@@ -250,6 +250,35 @@ export class AuthService {
     return process.env.APP_PUBLIC_WEB_URL?.trim().replace(/\/+$/, '') || 'http://localhost:3000';
   }
 
+  private getAllowedWebOrigins() {
+    const values = [process.env.APP_PUBLIC_WEB_URL, process.env.APP_PUBLIC_WEB_URLS, process.env.CORS_ORIGIN];
+    const origins = new Set<string>();
+
+    for (const value of values) {
+      if (!value) {
+        continue;
+      }
+
+      for (const part of value.split(',')) {
+        const trimmed = part.trim().replace(/\/+$/, '');
+        if (!trimmed || trimmed === '*') {
+          continue;
+        }
+
+        try {
+          const url = new URL(trimmed);
+          if (url.protocol === 'http:' || url.protocol === 'https:') {
+            origins.add(url.origin);
+          }
+        } catch {
+          // Ignore invalid origins from env.
+        }
+      }
+    }
+
+    return origins;
+  }
+
   private getGoogleClientId() {
     return process.env.GOOGLE_CLIENT_ID?.trim();
   }
@@ -316,14 +345,22 @@ export class AuthService {
     }
 
     const trimmed = returnTo.trim();
-    const webBase = this.getWebAppUrl();
-    const allowedPrefixes = [webBase, 'exp://', 'exps://', 'expensetracker://', 'https://auth.expo.io/'];
+    const appPrefixes = ['exp://', 'exps://', 'expensetracker://', 'https://auth.expo.io/'];
 
-    if (!allowedPrefixes.some((prefix) => trimmed.startsWith(prefix))) {
-      throw new BadRequestException('Unsupported returnTo URL');
+    if (appPrefixes.some((prefix) => trimmed.startsWith(prefix))) {
+      return trimmed;
     }
 
-    return trimmed;
+    try {
+      const url = new URL(trimmed);
+      if ((url.protocol === 'http:' || url.protocol === 'https:') && this.getAllowedWebOrigins().has(url.origin)) {
+        return trimmed;
+      }
+    } catch {
+      // Invalid URL will be rejected below.
+    }
+
+    throw new BadRequestException('Unsupported returnTo URL');
   }
 
   private getReturnToFromState(state?: string) {

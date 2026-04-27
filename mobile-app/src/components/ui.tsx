@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { ReactNode, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { AppIcon, AppIconName } from './icons';
 import { ThemePalette, useAppTheme, useThemedStyles } from '../theme';
 import { dateInputValue, dateLabel } from '../utils/format';
 
@@ -190,7 +190,7 @@ export function EmptyState({ title, subtitle }: { title: string; subtitle?: stri
 
   return (
     <View style={styles.emptyState}>
-      <Ionicons name="sparkles-outline" size={18} color={palette.muted} />
+      <AppIcon name="sparkles-outline" size={18} color={palette.muted} />
       <Text style={styles.emptyTitle}>{title}</Text>
       {subtitle ? <Text style={styles.emptySubtitle}>{subtitle}</Text> : null}
     </View>
@@ -261,7 +261,7 @@ export function IconButton({
   tone = 'ghost',
   disabled,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
   onPress: () => void;
   tone?: 'ghost' | 'primary';
   disabled?: boolean;
@@ -276,7 +276,7 @@ export function IconButton({
       activeOpacity={0.9}
       disabled={disabled}
     >
-      <Ionicons name={icon} size={18} color={tone === 'primary' ? '#ffffff' : palette.text} />
+      <AppIcon name={icon} size={18} color={tone === 'primary' ? '#ffffff' : palette.text} />
     </TouchableOpacity>
   );
 }
@@ -329,7 +329,7 @@ export function Field({
         />
         {secure && showPasswordToggle ? (
           <TouchableOpacity style={styles.inputIconButton} onPress={() => setPasswordVisible((current) => !current)} activeOpacity={0.8}>
-            <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={palette.muted} />
+            <AppIcon name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={palette.muted} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -381,7 +381,7 @@ export function DateField({
         <Text style={[styles.dateButtonText, !value && styles.dateButtonPlaceholder]}>
           {value ? dateLabel(value) : placeholder || 'Select date'}
         </Text>
-        <Ionicons name="calendar-outline" size={18} color={palette.muted} />
+        <AppIcon name="calendar-outline" size={18} color={palette.muted} />
       </TouchableOpacity>
 
       {open && Platform.OS === 'android' ? <DateTimePicker value={draftDate} mode="date" display="default" onChange={onAndroidChange} /> : null}
@@ -478,7 +478,7 @@ export function SelectField<T extends string>({
         {label ? <Text style={styles.label}>{label}</Text> : null}
         <TouchableOpacity style={styles.select} onPress={() => setOpen(true)} activeOpacity={0.92}>
           <Text style={styles.selectText}>{selected?.label ?? 'Select'}</Text>
-          <Ionicons name="chevron-down" size={18} color={palette.muted} />
+          <AppIcon name="chevron-down" size={18} color={palette.muted} />
         </TouchableOpacity>
       </View>
 
@@ -497,7 +497,7 @@ export function SelectField<T extends string>({
                 activeOpacity={0.92}
               >
                 <Text style={[styles.selectItemText, option.value === value && styles.selectItemTextActive]}>{option.label}</Text>
-                {option.value === value ? <Ionicons name="checkmark" size={18} color={palette.primary} /> : null}
+                {option.value === value ? <AppIcon name="checkmark" size={18} color={palette.primary} /> : null}
               </TouchableOpacity>
             ))}
             <Button label="Close" ghost onPress={() => setOpen(false)} />

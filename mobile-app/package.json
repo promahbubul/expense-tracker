@@ -10,16 +10,18 @@
     "start:localhost": "expo start --localhost --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "doctor": "expo-doctor",
+    "export:android": "expo export --platform android --output-dir dist --no-bytecode",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:production": "eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.10",
-    "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-community/datetimepicker": "8.6.0",
     "expo": "^55.0.17",
     "expo-auth-session": "~55.0.15",
-    "expo-font": "~55.0.6",
     "expo-print": "~55.0.13",
     "expo-sharing": "~55.0.18",
     "expo-status-bar": "~55.0.5",

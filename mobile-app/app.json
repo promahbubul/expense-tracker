@@ -8,7 +8,7 @@
     "userInterfaceStyle": "automatic",
     "scheme": "expensetracker",
     "assetBundlePatterns": [
-      "**/*"
+      "src/assets/logo.png"
     ],
     "splash": {
       "image": "./src/assets/logo.png",
@@ -17,16 +17,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "icon": "./src/assets/logo.png"
+      "icon": "./src/assets/logo.png",
+      "bundleIdentifier": "com.rsitlink.expensetracker"
     },
     "android": {
+      "package": "com.rsitlink.expensetracker",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/logo.png",
         "backgroundColor": "#ffffff"
       }
     },
     "plugins": [
-      "expo-font",
       "@react-native-community/datetimepicker",
       "expo-sharing",
       "expo-web-browser"

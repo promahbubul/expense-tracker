@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import { AppIcon } from '../components/icons';
 import { Button, Card, DateField, EmptyState, LoadingBlock, Row, Screen, ScreenHeader, SectionTitle, SelectField, Stat } from '../components/ui';
 import { api } from '../services/api';
 import { ThemePalette, useAppTheme, useThemedStyles } from '../theme';
@@ -278,7 +278,7 @@ export function DashboardScreen() {
             <Text style={styles.heroValue}>{money(data?.totals.accountBalance ?? 0)}</Text>
           </View>
           <View style={styles.heroIcon}>
-            <Ionicons name="wallet-outline" size={20} color={palette.primary} />
+            <AppIcon name="wallet-outline" size={20} color={palette.primary} />
           </View>
         </View>
         <View style={styles.heroMeta}>
