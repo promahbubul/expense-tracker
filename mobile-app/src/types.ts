@@ -10,6 +10,7 @@ export type AuthResponse = {
   accessToken: string;
   user: AuthUser;
   message?: string;
+  emailDeliveryFailed?: boolean;
 };
 
 export type PasswordResetSession = {
@@ -27,6 +28,8 @@ export type Ref = {
 
 export type Account = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   name: string;
   number?: string;
   details?: string;
@@ -36,6 +39,8 @@ export type Account = {
 
 export type Transfer = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   fromAccountId: Ref | string;
   toAccountId: Ref | string;
   amount: number;
@@ -46,12 +51,16 @@ export type Transfer = {
 
 export type Category = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   name: string;
   type: CategoryType;
 };
 
 export type Transaction = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   description: string;
   categoryId: Ref | string;
   accountId: Ref | string;
@@ -62,6 +71,8 @@ export type Transaction = {
 
 export type LoanPerson = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   name: string;
   phone?: string;
   address?: string;
@@ -70,6 +81,8 @@ export type LoanPerson = {
 
 export type Loan = {
   _id: string;
+  createdAt?: string;
+  updatedAt?: string;
   personId: Ref | string;
   accountId: Ref | string;
   direction: 'LENT' | 'BORROWED';

@@ -27,6 +27,10 @@ export default function AccountsPage() {
   const [accountError, setAccountError] = useState('');
   const [transferError, setTransferError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [accountSubmitting, setAccountSubmitting] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [accountDeletingId, setAccountDeletingId] = useState<string | null>(null);
+  const [transferDeletingId, setTransferDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     if (!silent) {
@@ -48,6 +52,7 @@ export default function AccountsPage() {
   async function submitAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAccountError('');
+    setAccountSubmitting(true);
     const form = new FormData(event.currentTarget);
     const body = {
       name: String(form.get('name')),
@@ -71,12 +76,15 @@ export default function AccountsPage() {
       await load({ silent: true });
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setAccountSubmitting(false);
     }
   }
 
   async function submitTransfer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTransferError('');
+    setTransferSubmitting(true);
     const form = new FormData(event.currentTarget);
     const body = {
       fromAccountId: String(form.get('fromAccountId')),
@@ -98,6 +106,8 @@ export default function AccountsPage() {
       await load({ silent: true });
     } catch (err) {
       setTransferError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setTransferSubmitting(false);
     }
   }
 
@@ -105,16 +115,30 @@ export default function AccountsPage() {
     if (!window.confirm('Delete this account?')) {
       return;
     }
-    await http.delete(`/accounts/${id}`);
-    await load({ silent: true });
+    setAccountDeletingId(id);
+    try {
+      await http.delete(`/accounts/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setAccountDeletingId(null);
+    }
   }
 
   async function removeTransfer(id: string) {
     if (!window.confirm('Delete this transfer?')) {
       return;
     }
-    await http.delete(`/transfers/${id}`);
-    await load({ silent: true });
+    setTransferDeletingId(id);
+    try {
+      await http.delete(`/transfers/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setTransferDeletingId(null);
+    }
   }
 
   return (
@@ -124,7 +148,7 @@ export default function AccountsPage() {
           <button
             className="ghostButton"
             type="button"
-            disabled={items.length < 2}
+            disabled={items.length < 2 || transferSubmitting || Boolean(transferDeletingId)}
             onClick={() => {
               setEditingTransfer(null);
               setTransferOpen(true);
@@ -136,6 +160,7 @@ export default function AccountsPage() {
           <button
             className="button"
             type="button"
+            disabled={accountSubmitting || Boolean(accountDeletingId)}
             onClick={() => {
               setEditingAccount(null);
               setAccountOpen(true);
@@ -170,6 +195,7 @@ export default function AccountsPage() {
                   <button
                     className="iconButton"
                     type="button"
+                    disabled={accountSubmitting || Boolean(accountDeletingId)}
                     onClick={() => {
                       setEditingAccount(item);
                       setAccountOpen(true);
@@ -178,8 +204,8 @@ export default function AccountsPage() {
                   >
                     <Pencil size={16} />
                   </button>
-                  <button className="iconButton" type="button" onClick={() => removeAccount(item._id)} aria-label="Delete">
-                    <Trash2 size={16} />
+                  <button className="iconButton" type="button" onClick={() => removeAccount(item._id)} aria-label="Delete" disabled={accountSubmitting || Boolean(accountDeletingId)}>
+                    {accountDeletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                   </button>
                 </div>
               </td>
@@ -213,6 +239,7 @@ export default function AccountsPage() {
                   <button
                     className="iconButton"
                     type="button"
+                    disabled={transferSubmitting || Boolean(transferDeletingId)}
                     onClick={() => {
                       setEditingTransfer(item);
                       setTransferOpen(true);
@@ -221,8 +248,8 @@ export default function AccountsPage() {
                   >
                     <Pencil size={16} />
                   </button>
-                  <button className="iconButton" type="button" onClick={() => removeTransfer(item._id)} aria-label="Delete">
-                    <Trash2 size={16} />
+                  <button className="iconButton" type="button" onClick={() => removeTransfer(item._id)} aria-label="Delete" disabled={transferSubmitting || Boolean(transferDeletingId)}>
+                    {transferDeletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                   </button>
                 </div>
               </td>
@@ -237,10 +264,11 @@ export default function AccountsPage() {
         onClose={() => setAccountOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setAccountOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setAccountOpen(false)} disabled={accountSubmitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="accountForm">
+            <button className="button" type="submit" form="accountForm" disabled={accountSubmitting}>
+              {accountSubmitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>
@@ -275,10 +303,11 @@ export default function AccountsPage() {
         onClose={() => setTransferOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setTransferOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setTransferOpen(false)} disabled={transferSubmitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="transferForm">
+            <button className="button" type="submit" form="transferForm" disabled={transferSubmitting}>
+              {transferSubmitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>

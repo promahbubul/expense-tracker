@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat, SelectField } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
 import { api } from '../services/api';
@@ -23,6 +23,8 @@ export function LoansScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [open, setOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<LoanPerson | null>(null);
+  const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [purpose, setPurpose] = useState('');
@@ -35,6 +37,9 @@ export function LoansScreen() {
   const [filterDirection, setFilterDirection] = useState<LoanFilter>('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [peopleDeletingId, setPeopleDeletingId] = useState<string | null>(null);
+  const [loanDeletingId, setLoanDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const peoplePager = useInfiniteList(people);
   const loanPager = useInfiniteList(loans);
@@ -73,27 +78,138 @@ export function LoansScreen() {
     load().catch(console.error);
   }, [filterDirection, filterPersonId]);
 
+  function resetPersonForm(nextPeople: LoanPerson[] = people) {
+    setEditingPerson(null);
+    setName('');
+    setPhone('');
+    setPersonId(nextPeople[0]?._id || '');
+  }
+
+  function resetLoanForm(nextPeople: LoanPerson[] = people, nextAccounts: Account[] = accounts) {
+    setEditingLoan(null);
+    setPurpose('');
+    setAmount('');
+    setDirection('LENT');
+    setLoanDate(dateInputValue());
+    setPersonId(nextPeople[0]?._id || '');
+    setAccountId(nextAccounts[0]?._id || '');
+  }
+
+  function openCreate() {
+    if (mode === 'people') {
+      resetPersonForm();
+    } else {
+      resetLoanForm();
+    }
+    setError('');
+    setOpen(true);
+  }
+
+  function openPersonEdit(item: LoanPerson) {
+    setEditingPerson(item);
+    setName(item.name);
+    setPhone(item.phone || '');
+    setError('');
+    setOpen(true);
+  }
+
+  function openLoanEdit(item: Loan) {
+    setEditingLoan(item);
+    setPurpose(item.purpose);
+    setAmount(String(item.amount));
+    setDirection(item.direction);
+    setLoanDate(dateInputValue(item.loanDate));
+    setPersonId(typeof item.personId === 'string' ? item.personId : item.personId._id);
+    setAccountId(typeof item.accountId === 'string' ? item.accountId : item.accountId._id);
+    setError('');
+    setOpen(true);
+  }
+
   async function save() {
     setError('');
+    setSaving(true);
     try {
       if (mode === 'people') {
-        await api('/loan/accounts', { method: 'POST', body: { name, phone } });
-        setName('');
-        setPhone('');
-      } else {
-        await api('/loan/loads', {
-          method: 'POST',
-          body: { personId, accountId, direction, purpose, amount: Number(amount), loanDate },
+        await api(editingPerson ? `/loan/accounts/${editingPerson._id}` : '/loan/accounts', {
+          method: editingPerson ? 'PATCH' : 'POST',
+          body: {
+            name,
+            phone,
+            ...(editingPerson?.updatedAt ? { expectedUpdatedAt: editingPerson.updatedAt } : {}),
+          },
         });
-        setPurpose('');
-        setAmount('');
-        setLoanDate(dateInputValue());
+        resetPersonForm();
+      } else {
+        await api(editingLoan ? `/loan/loads/${editingLoan._id}` : '/loan/loads', {
+          method: editingLoan ? 'PATCH' : 'POST',
+          body: {
+            personId,
+            accountId,
+            direction,
+            purpose,
+            amount: Number(amount),
+            loanDate,
+            ...(editingLoan?.updatedAt ? { expectedUpdatedAt: editingLoan.updatedAt } : {}),
+          },
+        });
+        resetLoanForm();
       }
       setOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
     }
+  }
+
+  function closeSheet() {
+    setOpen(false);
+    setEditingPerson(null);
+    setEditingLoan(null);
+    setError('');
+  }
+
+  function removePerson(item: LoanPerson) {
+    Alert.alert('Delete person', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setPeopleDeletingId(item._id);
+          try {
+            await api(`/loan/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+          } finally {
+            setPeopleDeletingId(null);
+          }
+        },
+      },
+    ]);
+  }
+
+  function removeLoan(item: Loan) {
+    Alert.alert('Delete loan', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setLoanDeletingId(item._id);
+          try {
+            await api(`/loan/loads/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+          } finally {
+            setLoanDeletingId(null);
+          }
+        },
+      },
+    ]);
   }
 
   const given = loans.filter((item) => item.direction === 'LENT').reduce((sum, item) => sum + item.amount, 0);
@@ -101,12 +217,8 @@ export function LoansScreen() {
   const net = given - taken;
 
   return (
-    <Screen
-      onScroll={mode === 'people' ? peoplePager.onScroll : loanPager.onScroll}
-      onRefresh={() => load({ refresh: true }).catch(console.error)}
-      refreshing={refreshing}
-    >
-      <ScreenHeader title="Loans" action={<IconButton icon="add-outline" tone="primary" onPress={() => setOpen(true)} />} />
+    <Screen onScroll={mode === 'people' ? peoplePager.onScroll : loanPager.onScroll} onRefresh={() => load({ refresh: true }).catch(console.error)} refreshing={refreshing}>
+      <ScreenHeader title="Loans" action={<IconButton icon="add-outline" tone="primary" onPress={openCreate} />} />
 
       <Segmented
         value={mode}
@@ -151,8 +263,20 @@ export function LoansScreen() {
         ) : mode === 'people' ? (
           people.length ? (
             <>
-              {peoplePager.visibleItems.map((item) => <Row key={item._id} title={item.name} caption={item.phone || 'Loan contact'} />)}
-              <LoadingFooter visible={peoplePager.loadingMore} />
+              {peoplePager.visibleItems.map((item) => (
+                <Row
+                  key={item._id}
+                  title={item.name}
+                  caption={item.phone || 'Loan contact'}
+                  actions={
+                    <>
+                      <IconButton icon="create-outline" onPress={() => openPersonEdit(item)} disabled={saving || Boolean(peopleDeletingId)} />
+                      <IconButton icon="trash-outline" onPress={() => removePerson(item)} loading={peopleDeletingId === item._id} disabled={saving || Boolean(peopleDeletingId)} />
+                    </>
+                  }
+                />
+              ))}
+              <LoadingFooter visible={peoplePager.loadingMore || loading} />
             </>
           ) : (
             <EmptyState title="No loan people yet" subtitle="Add someone you lend to or borrow from." />
@@ -167,9 +291,15 @@ export function LoansScreen() {
                 caption={dateLabel(item.loanDate)}
                 amount={money(item.amount)}
                 danger={item.direction === 'LENT'}
-              />
+                  actions={
+                    <>
+                      <IconButton icon="create-outline" onPress={() => openLoanEdit(item)} disabled={saving || Boolean(loanDeletingId)} />
+                      <IconButton icon="trash-outline" onPress={() => removeLoan(item)} loading={loanDeletingId === item._id} disabled={saving || Boolean(loanDeletingId)} />
+                    </>
+                  }
+                />
             ))}
-            <LoadingFooter visible={loanPager.loadingMore} />
+            <LoadingFooter visible={loanPager.loadingMore || loading} />
           </>
         ) : (
           <EmptyState title="No loan entries yet" subtitle="Track borrowed and lent money from this screen." />
@@ -181,7 +311,7 @@ export function LoansScreen() {
         ) : null}
       </Card>
 
-      <Sheet visible={open} title={mode === 'people' ? 'Add Loan Person' : 'Add Loan'} onClose={() => setOpen(false)}>
+      <Sheet visible={open} title={mode === 'people' ? (editingPerson ? 'Edit Loan Person' : 'Add Loan Person') : editingLoan ? 'Edit Loan' : 'Add Loan'} onClose={closeSheet}>
         {mode === 'people' ? (
           <>
             <Field label="Name" value={name} onChangeText={setName} />
@@ -219,7 +349,12 @@ export function LoansScreen() {
           </>
         )}
         {error ? <EmptyState title={error} /> : null}
-        <Button label="Save" onPress={save} disabled={mode === 'people' ? !name : !personId || !accountId || !purpose || !amount || !loanDate} />
+        <Button
+          label={mode === 'people' ? (editingPerson ? 'Update' : 'Save') : editingLoan ? 'Update' : 'Save'}
+          onPress={save}
+          loading={saving}
+          disabled={mode === 'people' ? !name : !personId || !accountId || !purpose || !amount || !loanDate}
+        />
       </Sheet>
     </Screen>
   );

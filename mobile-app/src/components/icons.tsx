@@ -4,6 +4,7 @@ import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 
 export type AppIconName =
   | 'add-outline'
+  | 'create-outline'
   | 'calendar-outline'
   | 'checkmark'
   | 'checkmark-outline'
@@ -27,6 +28,7 @@ export type AppIconName =
   | 'stats-chart-outline'
   | 'swap-horizontal'
   | 'swap-horizontal-outline'
+  | 'trash-outline'
   | 'wallet'
   | 'wallet-outline';
 
@@ -193,6 +195,27 @@ export function AppIcon({ name, size = 18, color = '#122033' }: AppIconProps) {
       <IconCanvas size={size}>
         <Line x1="6" y1="6" x2="18" y2="18" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
         <Line x1="18" y1="6" x2="6" y2="18" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      </IconCanvas>
+    );
+  }
+
+  if (name === 'create-outline') {
+    return (
+      <IconCanvas size={size}>
+        <Path d="M4.5 19.5h3.4l8.8-8.8-3.4-3.4-8.8 8.8v3.4Z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        <Path d="m12.6 7.4 3.4 3.4 1.7-1.7a1.6 1.6 0 0 0 0-2.3l-1.1-1.1a1.6 1.6 0 0 0-2.3 0l-1.7 1.7Z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+      </IconCanvas>
+    );
+  }
+
+  if (name === 'trash-outline') {
+    return (
+      <IconCanvas size={size}>
+        <Path d="M5.5 7.5h13" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        <Path d="M9 7.5V5.9c0-.8.6-1.4 1.4-1.4h3.2c.8 0 1.4.6 1.4 1.4v1.6" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        <Path d="M7.3 7.5 8.1 18a1.8 1.8 0 0 0 1.8 1.6h4.2a1.8 1.8 0 0 0 1.8-1.6l.8-10.5" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        <Line x1="10" y1="10.2" x2="10.4" y2="16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        <Line x1="14" y1="10.2" x2="13.6" y2="16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
       </IconCanvas>
     );
   }

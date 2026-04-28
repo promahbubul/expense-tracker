@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, StickyBar } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
 import { api } from '../services/api';
@@ -16,6 +16,7 @@ export function MoneyScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Transaction | null>(null);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [accountId, setAccountId] = useState('');
@@ -25,12 +26,17 @@ export function MoneyScreen() {
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [filtering, setFiltering] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const pager = useInfiniteList(items);
 
-  async function load(nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean }) {
+  async function load(nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean; filter?: boolean }) {
     if (options?.refresh) {
       setRefreshing(true);
+    } else if (options?.filter) {
+      setFiltering(true);
     } else {
       setLoading(true);
     }
@@ -55,6 +61,7 @@ export function MoneyScreen() {
       setError(err instanceof Error ? err.message : 'Could not load money data');
     } finally {
       setLoading(false);
+      setFiltering(false);
       setRefreshing(false);
     }
   }
@@ -63,38 +70,92 @@ export function MoneyScreen() {
     load().catch(console.error);
   }, [mode]);
 
+  function resetForm(nextAccounts: Account[] = accounts, nextCategories: Category[] = categories) {
+    setEditingItem(null);
+    setDescription('');
+    setAmount('');
+    setEntryDate(dateInputValue());
+    setAccountId(nextAccounts[0]?._id || '');
+    setCategoryId(nextCategories[0]?._id || '');
+  }
+
+  function openCreate() {
+    resetForm();
+    setOpen(true);
+  }
+
+  function openEdit(item: Transaction) {
+    setEditingItem(item);
+    setDescription(item.description);
+    setAmount(String(item.amount));
+    setEntryDate(dateInputValue(item.transactionDate));
+    setAccountId(typeof item.accountId === 'string' ? item.accountId : item.accountId._id);
+    setCategoryId(typeof item.categoryId === 'string' ? item.categoryId : item.categoryId._id);
+    setOpen(true);
+  }
+
   async function save() {
     setError('');
+    setSaving(true);
     try {
-      await api(`/${mode}`, {
-        method: 'POST',
+      const path = editingItem ? `/${mode}/${editingItem._id}` : `/${mode}`;
+      await api(path, {
+        method: editingItem ? 'PATCH' : 'POST',
         body: {
           description,
           amount: Number(amount),
           accountId,
           categoryId,
           transactionDate: entryDate,
+          ...(editingItem?.updatedAt ? { expectedUpdatedAt: editingItem.updatedAt } : {}),
         },
       });
-      setDescription('');
-      setAmount('');
-      setEntryDate(dateInputValue());
+      resetForm();
       setOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
     }
+  }
+
+  function closeSheet() {
+    setOpen(false);
+    setEditingItem(null);
+    setError('');
+  }
+
+  function removeItem(item: Transaction) {
+    Alert.alert(`Delete ${mode === 'expenses' ? 'expense' : 'income'}`, 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingId(item._id);
+          try {
+            await api(`/${mode}/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
   }
 
   function clearFilters() {
     setFrom('');
     setTo('');
-    load('', '').catch(console.error);
+    load('', '', { filter: true }).catch(console.error);
   }
 
   return (
     <Screen onScroll={pager.onScroll} onRefresh={() => load(from, to, { refresh: true }).catch(console.error)} refreshing={refreshing} stickyHeaderIndices={[1]}>
-      <ScreenHeader title="Money" action={<IconButton icon="add-outline" tone="primary" onPress={() => setOpen(true)} />} />
+      <ScreenHeader title="Money" action={<IconButton icon="add-outline" tone="primary" onPress={openCreate} />} />
 
       <StickyBar>
         <View style={styles.stickyStack}>
@@ -117,8 +178,8 @@ export function MoneyScreen() {
               </View>
             </View>
             <View style={styles.filterActions}>
-              <IconButton icon="checkmark-outline" onPress={() => load().catch(console.error)} />
-              <IconButton icon="close-outline" onPress={clearFilters} disabled={!from && !to} />
+              <IconButton icon="checkmark-outline" onPress={() => load(from, to, { filter: true }).catch(console.error)} loading={filtering} disabled={saving || Boolean(deletingId)} />
+              <IconButton icon="close-outline" onPress={clearFilters} disabled={(!from && !to) || filtering || saving || Boolean(deletingId)} />
             </View>
           </View>
         </View>
@@ -147,10 +208,16 @@ export function MoneyScreen() {
                   </View>
                   <Text style={styles.itemDate}>{dateLabel(item.transactionDate)}</Text>
                 </View>
-                <Text style={[styles.itemAmount, mode === 'expenses' ? styles.itemAmountExpense : styles.itemAmountIncome]}>{money(item.amount)}</Text>
+                <View style={styles.itemSide}>
+                  <Text style={[styles.itemAmount, mode === 'expenses' ? styles.itemAmountExpense : styles.itemAmountIncome]}>{money(item.amount)}</Text>
+                  <View style={styles.itemActions}>
+                    <IconButton icon="create-outline" onPress={() => openEdit(item)} disabled={saving || Boolean(deletingId)} />
+                    <IconButton icon="trash-outline" onPress={() => removeItem(item)} loading={deletingId === item._id} disabled={saving || Boolean(deletingId)} />
+                  </View>
+                </View>
               </View>
             ))}
-            <LoadingFooter visible={pager.loadingMore} />
+            <LoadingFooter visible={pager.loadingMore || loading || filtering} />
             <Text style={styles.listMeta}>
               {pager.visibleCount} of {pager.totalCount}
             </Text>
@@ -160,7 +227,7 @@ export function MoneyScreen() {
         )}
       </Card>
 
-      <Sheet visible={open} title={mode === 'expenses' ? 'Add Expense' : 'Add Income'} onClose={() => setOpen(false)}>
+      <Sheet visible={open} title={editingItem ? (mode === 'expenses' ? 'Edit Expense' : 'Edit Income') : mode === 'expenses' ? 'Add Expense' : 'Add Income'} onClose={closeSheet}>
         <Field label="Description" value={description} onChangeText={setDescription} multiline />
         <Field label="Amount" value={amount} onChangeText={setAmount} numeric />
         <DateField label="Date" value={entryDate} onChange={setEntryDate} placeholder="Select date" />
@@ -184,7 +251,7 @@ export function MoneyScreen() {
         </ScrollView>
 
         {error ? <EmptyState title={error} /> : null}
-        <Button label="Save" onPress={save} disabled={!description || !amount || !accountId || !categoryId || !entryDate} />
+        <Button label={editingItem ? 'Update' : 'Save'} onPress={save} loading={saving} disabled={!description || !amount || !accountId || !categoryId || !entryDate} />
       </Sheet>
     </Screen>
   );
@@ -253,6 +320,16 @@ const createStyles = (palette: ThemePalette) =>
       marginTop: 1,
       fontSize: 12,
       fontWeight: '800',
+    },
+    itemSide: {
+      alignItems: 'flex-end',
+      gap: 6,
+      paddingLeft: 8,
+    },
+    itemActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
     },
     itemAmountExpense: {
       color: palette.danger,

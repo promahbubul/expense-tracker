@@ -1,10 +1,14 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
+  Keyboard,
   KeyboardTypeOptions,
   Modal,
+  Pressable,
   Platform,
   RefreshControl,
   ScrollView,
@@ -51,7 +55,13 @@ export function Screen({
   return (
     <ScrollView
       style={styles.screenScroll}
-      contentContainerStyle={[styles.screen, { paddingBottom: 18 + Math.max(insets.bottom - 6, 0) }]}
+      contentContainerStyle={[
+        styles.screen,
+        {
+          paddingTop: Math.max(insets.top, 10) + 8,
+          paddingBottom: 18 + Math.max(insets.bottom - 6, 0),
+        },
+      ]}
       showsVerticalScrollIndicator={false}
       onScroll={onScroll}
       scrollEventThrottle={scrollEventThrottle ?? 16}
@@ -140,6 +150,7 @@ export function Row({
   danger,
   meta,
   caption,
+  actions,
 }: {
   title: string;
   subtitle?: string;
@@ -147,6 +158,7 @@ export function Row({
   danger?: boolean;
   meta?: string[];
   caption?: string;
+  actions?: ReactNode;
 }) {
   const styles = useThemedStyles(createStyles);
   const metaItems = useMemo(() => (meta ?? []).filter(Boolean), [meta]);
@@ -179,7 +191,12 @@ export function Row({
         ) : null}
       </View>
 
-      {amount ? <Text style={[styles.rowAmount, danger ? styles.rowAmountDanger : styles.rowAmountPositive]}>{amount}</Text> : null}
+      {amount || actions ? (
+        <View style={styles.rowSide}>
+          {amount ? <Text style={[styles.rowAmount, danger ? styles.rowAmountDanger : styles.rowAmountPositive]}>{amount}</Text> : null}
+          {actions ? <View style={styles.rowActions}>{actions}</View> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -232,6 +249,7 @@ export function Button({
   compact,
   disabled,
   icon,
+  loading,
 }: {
   label: string;
   onPress: () => void;
@@ -239,17 +257,20 @@ export function Button({
   compact?: boolean;
   disabled?: boolean;
   icon?: ReactNode;
+  loading?: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { palette } = useAppTheme();
+  const spinnerColor = ghost ? palette.text : '#ffffff';
 
   return (
     <TouchableOpacity
-      style={[styles.button, ghost && styles.ghost, compact && styles.buttonCompact, disabled && styles.buttonDisabled]}
+      style={[styles.button, ghost && styles.ghost, compact && styles.buttonCompact, (disabled || loading) && styles.buttonDisabled]}
       onPress={onPress}
       activeOpacity={0.92}
-      disabled={disabled}
+      disabled={disabled || loading}
     >
-      {icon ? <View style={styles.buttonIcon}>{icon}</View> : null}
+      {loading ? <ActivityIndicator size="small" color={spinnerColor} /> : icon ? <View style={styles.buttonIcon}>{icon}</View> : null}
       <Text style={[styles.buttonText, ghost && styles.ghostText, compact && styles.buttonTextCompact]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -260,23 +281,26 @@ export function IconButton({
   onPress,
   tone = 'ghost',
   disabled,
+  loading,
 }: {
   icon: AppIconName;
   onPress: () => void;
   tone?: 'ghost' | 'primary';
   disabled?: boolean;
+  loading?: boolean;
 }) {
   const styles = useThemedStyles(createStyles);
   const { palette } = useAppTheme();
+  const spinnerColor = tone === 'primary' ? '#ffffff' : palette.text;
 
   return (
     <TouchableOpacity
-      style={[styles.iconButton, tone === 'primary' && styles.iconButtonPrimary, disabled && styles.buttonDisabled]}
+      style={[styles.iconButton, tone === 'primary' && styles.iconButtonPrimary, (disabled || loading) && styles.buttonDisabled]}
       onPress={onPress}
       activeOpacity={0.9}
-      disabled={disabled}
+      disabled={disabled || loading}
     >
-      <AppIcon name={icon} size={18} color={tone === 'primary' ? '#ffffff' : palette.text} />
+      {loading ? <ActivityIndicator size="small" color={spinnerColor} /> : <AppIcon name={icon} size={18} color={spinnerColor} />}
     </TouchableOpacity>
   );
 }
@@ -388,8 +412,8 @@ export function DateField({
 
       {Platform.OS === 'ios' ? (
         <Modal visible={open} transparent animationType="fade" onRequestClose={closePicker}>
-          <View style={styles.selectOverlay}>
-            <View style={styles.selectSheet}>
+          <Pressable style={styles.selectOverlay} onPress={closePicker}>
+            <Pressable style={styles.selectSheet} onPress={(event) => event.stopPropagation()}>
               <Text style={styles.selectTitle}>{label ?? 'Select date'}</Text>
               <DateTimePicker
                 value={draftDate}
@@ -411,8 +435,8 @@ export function DateField({
                   }}
                 />
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       ) : null}
     </View>
@@ -483,8 +507,8 @@ export function SelectField<T extends string>({
       </View>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={styles.selectOverlay}>
-          <View style={styles.selectSheet}>
+        <Pressable style={styles.selectOverlay} onPress={() => setOpen(false)}>
+          <Pressable style={styles.selectSheet} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.selectTitle}>{label ?? 'Select option'}</Text>
             {options.map((option) => (
               <TouchableOpacity
@@ -501,8 +525,8 @@ export function SelectField<T extends string>({
               </TouchableOpacity>
             ))}
             <Button label="Close" ghost onPress={() => setOpen(false)} />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </>
   );
@@ -511,14 +535,82 @@ export function SelectField<T extends string>({
 export function Sheet({ visible, title, children, onClose }: { visible: boolean; title: string; children: ReactNode; onClose: () => void }) {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sheetShift = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      sheetShift.setValue(0);
+      return;
+    }
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    function animateSheet(toValue: number, duration?: number) {
+      Animated.timing(sheetShift, {
+        toValue,
+        duration: duration ?? 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      const nextHeight = Math.max(0, (event.endCoordinates?.height ?? 0) - Math.max(insets.bottom, 0));
+      animateSheet(-nextHeight, event.duration);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      animateSheet(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, [insets.bottom, sheetShift, visible]);
+
+  function requestClose() {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    Keyboard.dismiss();
+
+    if (Platform.OS === 'android') {
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null;
+        onClose();
+      }, 80);
+      return;
+    }
+
+    onClose();
+  }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: 16 + Math.max(insets.bottom, 0) }]}>
-          <SectionTitle title={title} action={<IconButton icon="close-outline" onPress={onClose} />} />
-          <View style={styles.sheetBody}>{children}</View>
-        </View>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose} statusBarTranslucent>
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.overlay} onPress={requestClose}>
+          <Animated.View style={[styles.sheetFrame, { transform: [{ translateY: sheetShift }] }]}>
+            <Pressable style={[styles.sheet, { paddingBottom: 16 + Math.max(insets.bottom, 0) }]} onPress={(event) => event.stopPropagation()}>
+            <SectionTitle title={title} action={<IconButton icon="close-outline" onPress={requestClose} />} />
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={[styles.sheetBody, { paddingBottom: 8 + Math.max(insets.bottom, 0) }]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
       </View>
     </Modal>
   );
@@ -527,17 +619,17 @@ export function Sheet({ visible, title, children, onClose }: { visible: boolean;
 const createStyles = (palette: ThemePalette) =>
   StyleSheet.create({
     screenScroll: { flex: 1, backgroundColor: palette.bg },
-    screen: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+    screen: { paddingHorizontal: 16, gap: 12 },
     stickyBar: {
       marginHorizontal: -16,
       paddingHorizontal: 16,
-      paddingTop: 2,
+      paddingTop: 4,
       paddingBottom: 6,
       backgroundColor: palette.bg,
     },
-    screenHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 },
+    screenHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 },
     screenHeaderCopy: { flex: 1, gap: 4 },
-    screenHeaderAction: { alignSelf: 'center' },
+    screenHeaderAction: { alignSelf: 'flex-start', paddingTop: 2 },
     screenEyebrow: {
       color: palette.muted,
       fontSize: 11,
@@ -549,31 +641,27 @@ const createStyles = (palette: ThemePalette) =>
     screenSubtitle: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     card: {
       backgroundColor: palette.surface,
-      borderRadius: 14,
+      borderRadius: 18,
       padding: 10,
-      borderWidth: 1,
-      borderColor: palette.border,
       shadowColor: palette.shadow,
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.08,
-      shadowRadius: 18,
-      elevation: 3,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.05,
+      shadowRadius: 16,
+      elevation: 1,
     },
     sectionTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 },
     h2: { color: palette.text, fontSize: 14, fontWeight: '800' },
     stat: {
       flex: 1,
       minWidth: '47%',
-      borderRadius: 12,
+      borderRadius: 16,
       paddingHorizontal: 10,
       paddingVertical: 9,
-      backgroundColor: palette.surface,
-      borderWidth: 1,
-      borderColor: palette.border,
+      backgroundColor: palette.surfaceMuted,
     },
-    statIncome: { backgroundColor: palette.successSoft, borderColor: palette.successSoft },
-    statExpense: { backgroundColor: palette.dangerSoft, borderColor: palette.dangerSoft },
-    statLoan: { backgroundColor: palette.loanSoft, borderColor: palette.loanSoft },
+    statIncome: { backgroundColor: palette.successSoft },
+    statExpense: { backgroundColor: palette.dangerSoft },
+    statLoan: { backgroundColor: palette.loanSoft },
     statLabel: { color: palette.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
     statValue: { marginTop: 6, color: palette.text, fontSize: 16, fontWeight: '800' },
     statValueIncome: { color: palette.success },
@@ -595,6 +683,16 @@ const createStyles = (palette: ThemePalette) =>
     rowSubtitle: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     rowCaption: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     rowAmount: { marginTop: 1, fontSize: 12, fontWeight: '800' },
+    rowSide: {
+      alignItems: 'flex-end',
+      gap: 6,
+      paddingLeft: 8,
+    },
+    rowActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
     rowAmountPositive: { color: palette.success },
     rowAmountDanger: { color: palette.danger },
     emptyState: {
@@ -654,13 +752,10 @@ const createStyles = (palette: ThemePalette) =>
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: palette.surfaceMuted,
-      borderWidth: 1,
-      borderColor: palette.border,
+      backgroundColor: 'transparent',
     },
     iconButtonPrimary: {
       backgroundColor: palette.primary,
-      borderColor: palette.primary,
     },
     ghost: {
       backgroundColor: palette.surfaceMuted,
@@ -678,10 +773,8 @@ const createStyles = (palette: ThemePalette) =>
     },
     inputWrap: {
       minHeight: 38,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surfaceElevated,
+      borderRadius: 14,
+      backgroundColor: palette.surfaceMuted,
       paddingLeft: 10,
       paddingRight: 8,
       flexDirection: 'row',
@@ -707,10 +800,8 @@ const createStyles = (palette: ThemePalette) =>
     },
     dateButton: {
       minHeight: 38,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surfaceElevated,
+      borderRadius: 14,
+      backgroundColor: palette.surfaceMuted,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -727,10 +818,8 @@ const createStyles = (palette: ThemePalette) =>
     },
     select: {
       minHeight: 38,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surfaceElevated,
+      borderRadius: 14,
+      backgroundColor: palette.surfaceMuted,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -740,12 +829,17 @@ const createStyles = (palette: ThemePalette) =>
     segmented: {
       flexDirection: 'row',
       backgroundColor: palette.surfaceMuted,
-      borderRadius: 10,
-      padding: 2,
+      borderRadius: 14,
+      padding: 3,
     },
-    segment: { flex: 1, minHeight: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    segment: { flex: 1, minHeight: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
     segmentActive: {
       backgroundColor: palette.surface,
+      shadowColor: palette.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 1,
     },
     segmentText: { color: palette.muted, fontWeight: '700', fontSize: 11 },
     segmentTextActive: { color: palette.text },
@@ -753,26 +847,27 @@ const createStyles = (palette: ThemePalette) =>
       paddingHorizontal: 9,
       minHeight: 28,
       borderRadius: 999,
-      borderWidth: 1,
-      borderColor: palette.border,
       justifyContent: 'center',
       marginRight: 6,
       marginBottom: 5,
-      backgroundColor: palette.surface,
+      backgroundColor: palette.surfaceMuted,
     },
-    chipActive: { backgroundColor: palette.primarySoft, borderColor: palette.primarySoft },
+    chipActive: { backgroundColor: palette.primarySoft },
     chipText: { color: palette.muted, fontWeight: '700', fontSize: 10 },
     chipTextActive: { color: palette.primary },
+    modalRoot: { flex: 1 },
     overlay: { flex: 1, backgroundColor: palette.overlay, justifyContent: 'flex-end' },
+    sheetFrame: { justifyContent: 'flex-end' },
     sheet: {
-      backgroundColor: palette.bg,
-      borderTopLeftRadius: 18,
-      borderTopRightRadius: 18,
+      backgroundColor: palette.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       paddingHorizontal: 12,
       paddingTop: 12,
       maxHeight: '90%',
     },
-    sheetBody: { paddingTop: 6 },
+    sheetScroll: { flexGrow: 0 },
+    sheetBody: { paddingTop: 6, paddingBottom: 8 },
     selectOverlay: {
       flex: 1,
       backgroundColor: palette.overlay,
@@ -781,10 +876,8 @@ const createStyles = (palette: ThemePalette) =>
     },
     selectSheet: {
       backgroundColor: palette.surface,
-      borderRadius: 14,
+      borderRadius: 18,
       padding: 12,
-      borderWidth: 1,
-      borderColor: palette.border,
       gap: 8,
     },
     selectTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
@@ -795,12 +888,12 @@ const createStyles = (palette: ThemePalette) =>
     },
     selectItem: {
       minHeight: 38,
-      borderRadius: 10,
+      borderRadius: 12,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: palette.surface,
+      backgroundColor: palette.surfaceMuted,
     },
     selectItemActive: {
       backgroundColor: palette.primarySoft,

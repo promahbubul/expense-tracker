@@ -33,6 +33,8 @@ export default function LoanLoadsPage() {
   const [directionFilter, setDirectionFilter] = useState<'all' | 'LENT' | 'BORROWED'>('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     if (!silent) {
@@ -75,6 +77,7 @@ export default function LoanLoadsPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     const form = new FormData(event.currentTarget);
     const body = {
       personId: String(form.get('personId')),
@@ -96,6 +99,8 @@ export default function LoanLoadsPage() {
       await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -103,8 +108,15 @@ export default function LoanLoadsPage() {
     if (!window.confirm('Delete this loan?')) {
       return;
     }
-    await http.delete(`/loan/loads/${id}`);
-    await load({ silent: true });
+    setDeletingId(id);
+    try {
+      await http.delete(`/loan/loads/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function clearFilters() {
@@ -145,10 +157,11 @@ export default function LoanLoadsPage() {
             <label>To</label>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
-          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)} disabled={loading || submitting || Boolean(deletingId)}>
+            {loading ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : null}
             Filter
           </button>
-          <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to && personId === 'all' && directionFilter === 'all'}>
+          <button className="ghostButton" type="button" onClick={clearFilters} disabled={loading || submitting || Boolean(deletingId) || (!from && !to && personId === 'all' && directionFilter === 'all')}>
             Clear
           </button>
         </div>
@@ -156,6 +169,7 @@ export default function LoanLoadsPage() {
           <button
             className="button"
             type="button"
+            disabled={submitting || Boolean(deletingId)}
             onClick={() => {
               setEditing(null);
               setOpen(true);
@@ -203,6 +217,7 @@ export default function LoanLoadsPage() {
                 <button
                   className="iconButton"
                   type="button"
+                  disabled={submitting || Boolean(deletingId)}
                   onClick={() => {
                     setEditing(item);
                     setOpen(true);
@@ -211,8 +226,8 @@ export default function LoanLoadsPage() {
                 >
                   <Pencil size={16} />
                 </button>
-                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                  <Trash2 size={16} />
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete" disabled={submitting || Boolean(deletingId)}>
+                  {deletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                 </button>
               </div>
             </td>
@@ -226,10 +241,11 @@ export default function LoanLoadsPage() {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="loanForm">
+            <button className="button" type="submit" form="loanForm" disabled={submitting}>
+              {submitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>

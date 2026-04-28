@@ -20,6 +20,8 @@ export function CategoryManager({ type, toolbarStart }: Props) {
   const [editing, setEditing] = useState<Category | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     if (!silent) {
@@ -39,6 +41,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     const form = new FormData(event.currentTarget);
     try {
       if (editing) {
@@ -51,6 +54,8 @@ export function CategoryManager({ type, toolbarStart }: Props) {
       await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -58,8 +63,15 @@ export function CategoryManager({ type, toolbarStart }: Props) {
     if (!window.confirm('Delete this category?')) {
       return;
     }
-    await http.delete(`/categories/${id}`);
-    await load({ silent: true });
+    setDeletingId(id);
+    try {
+      await http.delete(`/categories/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -69,6 +81,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
         <button
           className="button"
           type="button"
+          disabled={submitting || Boolean(deletingId)}
           onClick={() => {
             setEditing(null);
             setOpen(true);
@@ -96,6 +109,7 @@ export function CategoryManager({ type, toolbarStart }: Props) {
                 <button
                   className="iconButton"
                   type="button"
+                  disabled={submitting || Boolean(deletingId)}
                   onClick={() => {
                     setEditing(item);
                     setOpen(true);
@@ -104,8 +118,8 @@ export function CategoryManager({ type, toolbarStart }: Props) {
                 >
                   <Pencil size={16} />
                 </button>
-                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                  <Trash2 size={16} />
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete" disabled={submitting || Boolean(deletingId)}>
+                  {deletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                 </button>
               </div>
             </td>
@@ -119,10 +133,11 @@ export function CategoryManager({ type, toolbarStart }: Props) {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="categoryForm">
+            <button className="button" type="submit" form="categoryForm" disabled={submitting}>
+              {submitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>

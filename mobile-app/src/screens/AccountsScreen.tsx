@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
 import { api } from '../services/api';
@@ -16,6 +16,8 @@ export function AccountsScreen() {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [accountOpen, setAccountOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null);
   const [name, setName] = useState('');
   const [number, setNumber] = useState('');
   const [balance, setBalance] = useState('');
@@ -28,6 +30,10 @@ export function AccountsScreen() {
   const [transferDate, setTransferDate] = useState(dateInputValue());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [accountDeletingId, setAccountDeletingId] = useState<string | null>(null);
+  const [transferDeletingId, setTransferDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const accountPager = useInfiniteList(items);
   const transferPager = useInfiniteList(transfers);
@@ -57,29 +63,86 @@ export function AccountsScreen() {
     load().catch(console.error);
   }, []);
 
-  async function save() {
+  function resetAccountForm(nextAccounts: Account[] = items) {
+    setEditingAccount(null);
+    setName('');
+    setNumber('');
+    setDetails('');
+    setBalance('');
+    setFromAccountId(nextAccounts[0]?._id || '');
+    setToAccountId(nextAccounts[1]?._id || nextAccounts[0]?._id || '');
+  }
+
+  function openAccountCreate() {
+    resetAccountForm();
     setError('');
+    setAccountOpen(true);
+  }
+
+  function openAccountEdit(item: Account) {
+    setEditingAccount(item);
+    setName(item.name);
+    setNumber(item.number || '');
+    setDetails(item.details || '');
+    setBalance(String(item.initialBalance || 0));
+    setError('');
+    setAccountOpen(true);
+  }
+
+  async function saveAccount() {
+    setError('');
+    setAccountSaving(true);
     try {
-      await api('/accounts', {
-        method: 'POST',
-        body: { name, number, details, initialBalance: Number(balance || 0) },
+      await api(editingAccount ? `/accounts/${editingAccount._id}` : '/accounts', {
+        method: editingAccount ? 'PATCH' : 'POST',
+        body: {
+          name,
+          number,
+          details,
+          ...(!editingAccount ? { initialBalance: Number(balance || 0) } : {}),
+          ...(editingAccount?.updatedAt ? { expectedUpdatedAt: editingAccount.updatedAt } : {}),
+        },
       });
-      setName('');
-      setNumber('');
-      setDetails('');
-      setBalance('');
+      resetAccountForm();
       setAccountOpen(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setAccountSaving(false);
     }
+  }
+
+  function openTransferCreate() {
+    setEditingTransfer(null);
+    setTransferAmount('');
+    setFee('');
+    setNote('');
+    setTransferDate(dateInputValue());
+    setFromAccountId(items[0]?._id || '');
+    setToAccountId(items[1]?._id || items[0]?._id || '');
+    setError('');
+    setTransferOpen(true);
+  }
+
+  function openTransferEdit(item: Transfer) {
+    setEditingTransfer(item);
+    setTransferAmount(String(item.amount));
+    setFee(String(item.fee || 0));
+    setNote(item.note);
+    setTransferDate(dateInputValue(item.transferDate));
+    setFromAccountId(typeof item.fromAccountId === 'string' ? item.fromAccountId : item.fromAccountId._id);
+    setToAccountId(typeof item.toAccountId === 'string' ? item.toAccountId : item.toAccountId._id);
+    setError('');
+    setTransferOpen(true);
   }
 
   async function saveTransfer() {
     setError('');
+    setTransferSaving(true);
     try {
-      await api('/transfers', {
-        method: 'POST',
+      await api(editingTransfer ? `/transfers/${editingTransfer._id}` : '/transfers', {
+        method: editingTransfer ? 'PATCH' : 'POST',
         body: {
           fromAccountId,
           toAccountId,
@@ -87,8 +150,10 @@ export function AccountsScreen() {
           fee: Number(fee || 0),
           note,
           transferDate,
+          ...(editingTransfer?.updatedAt ? { expectedUpdatedAt: editingTransfer.updatedAt } : {}),
         },
       });
+      setEditingTransfer(null);
       setTransferAmount('');
       setFee('');
       setNote('');
@@ -97,7 +162,63 @@ export function AccountsScreen() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setTransferSaving(false);
     }
+  }
+
+  function closeAccountSheet() {
+    setAccountOpen(false);
+    setEditingAccount(null);
+    setError('');
+  }
+
+  function closeTransferSheet() {
+    setTransferOpen(false);
+    setEditingTransfer(null);
+    setError('');
+  }
+
+  function removeAccount(item: Account) {
+    Alert.alert('Delete account', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setAccountDeletingId(item._id);
+          try {
+            await api(`/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+          } finally {
+            setAccountDeletingId(null);
+          }
+        },
+      },
+    ]);
+  }
+
+  function removeTransfer(item: Transfer) {
+    Alert.alert('Delete transfer', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setTransferDeletingId(item._id);
+          try {
+            await api(`/transfers/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Delete failed');
+          } finally {
+            setTransferDeletingId(null);
+          }
+        },
+      },
+    ]);
   }
 
   const transferSummary = useMemo(
@@ -109,12 +230,11 @@ export function AccountsScreen() {
   );
 
   return (
-    <Screen
-      onScroll={mode === 'accounts' ? accountPager.onScroll : transferPager.onScroll}
-      onRefresh={() => load({ refresh: true }).catch(console.error)}
-      refreshing={refreshing}
-    >
-      <ScreenHeader title="Accounts" action={<IconButton icon={mode === 'accounts' ? 'add-outline' : 'swap-horizontal-outline'} tone="primary" onPress={() => (mode === 'accounts' ? setAccountOpen(true) : setTransferOpen(true))} />} />
+    <Screen onScroll={mode === 'accounts' ? accountPager.onScroll : transferPager.onScroll} onRefresh={() => load({ refresh: true }).catch(console.error)} refreshing={refreshing}>
+      <ScreenHeader
+        title="Accounts"
+        action={<IconButton icon={mode === 'accounts' ? 'add-outline' : 'swap-horizontal-outline'} tone="primary" onPress={() => (mode === 'accounts' ? openAccountCreate() : openTransferCreate())} />}
+      />
 
       <Segmented
         value={mode}
@@ -141,9 +261,21 @@ export function AccountsScreen() {
           items.length ? (
             <>
               {accountPager.visibleItems.map((item) => (
-                <Row key={item._id} title={item.name} meta={[item.number || 'No number']} caption={item.details || 'Account balance'} amount={money(item.currentBalance)} />
+                <Row
+                  key={item._id}
+                  title={item.name}
+                  meta={[item.number || 'No number']}
+                  caption={item.details || 'Account balance'}
+                  amount={money(item.currentBalance)}
+                  actions={
+                    <>
+                      <IconButton icon="create-outline" onPress={() => openAccountEdit(item)} disabled={accountSaving || Boolean(accountDeletingId)} />
+                      <IconButton icon="trash-outline" onPress={() => removeAccount(item)} loading={accountDeletingId === item._id} disabled={accountSaving || Boolean(accountDeletingId)} />
+                    </>
+                  }
+                />
               ))}
-              <LoadingFooter visible={accountPager.loadingMore} />
+              <LoadingFooter visible={accountPager.loadingMore || loading} />
             </>
           ) : (
             <EmptyState title="No accounts yet" subtitle="Add a bank, wallet, or cash account to begin." />
@@ -155,11 +287,17 @@ export function AccountsScreen() {
                 key={item._id}
                 title={item.note || 'Account transfer'}
                 meta={[refName(item.fromAccountId), refName(item.toAccountId)]}
-                caption={`${dateLabel(item.transferDate)}${item.fee ? ` • Fee ${money(item.fee)}` : ''}`}
+                caption={`${dateLabel(item.transferDate)}${item.fee ? ` - Fee ${money(item.fee)}` : ''}`}
                 amount={money(item.amount)}
-              />
+                  actions={
+                    <>
+                      <IconButton icon="create-outline" onPress={() => openTransferEdit(item)} disabled={transferSaving || Boolean(transferDeletingId)} />
+                      <IconButton icon="trash-outline" onPress={() => removeTransfer(item)} loading={transferDeletingId === item._id} disabled={transferSaving || Boolean(transferDeletingId)} />
+                    </>
+                  }
+                />
             ))}
-            <LoadingFooter visible={transferPager.loadingMore} />
+            <LoadingFooter visible={transferPager.loadingMore || loading} />
           </>
         ) : (
           <EmptyState title="No transfers yet" subtitle="Move money between accounts from this screen." />
@@ -171,16 +309,16 @@ export function AccountsScreen() {
         ) : null}
       </Card>
 
-      <Sheet visible={accountOpen} title="Add Account" onClose={() => setAccountOpen(false)}>
+      <Sheet visible={accountOpen} title={editingAccount ? 'Edit Account' : 'Add Account'} onClose={closeAccountSheet}>
         <Field label="Name" value={name} onChangeText={setName} />
         <Field label="Number" value={number} onChangeText={setNumber} />
         <Field label="Details" value={details} onChangeText={setDetails} multiline />
-        <Field label="Initial Deposit" value={balance} onChangeText={setBalance} numeric />
+        {!editingAccount ? <Field label="Initial Deposit" value={balance} onChangeText={setBalance} numeric /> : null}
         {error ? <EmptyState title={error} /> : null}
-        <Button label="Save" onPress={save} disabled={!name} />
+        <Button label={editingAccount ? 'Update' : 'Save'} onPress={saveAccount} loading={accountSaving} disabled={!name} />
       </Sheet>
 
-      <Sheet visible={transferOpen} title="Transfer Money" onClose={() => setTransferOpen(false)}>
+      <Sheet visible={transferOpen} title={editingTransfer ? 'Edit Transfer' : 'Transfer Money'} onClose={closeTransferSheet}>
         <DateField label="Date" value={transferDate} onChange={setTransferDate} placeholder="Select date" />
         <Field label="Amount" value={transferAmount} onChangeText={setTransferAmount} numeric />
         <Field label="Transfer Fee" value={fee} onChangeText={setFee} numeric />
@@ -206,8 +344,9 @@ export function AccountsScreen() {
 
         {error ? <EmptyState title={error} /> : null}
         <Button
-          label="Save Transfer"
+          label={editingTransfer ? 'Update Transfer' : 'Save Transfer'}
           onPress={saveTransfer}
+          loading={transferSaving}
           disabled={items.length < 2 || !fromAccountId || !toAccountId || fromAccountId === toAccountId || !transferAmount || !note}
         />
       </Sheet>

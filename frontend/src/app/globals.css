@@ -449,6 +449,18 @@ button {
   animation: loading-spin 0.8s linear infinite;
 }
 
+.loadingSpinnerInline {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  flex: 0 0 auto;
+}
+
+.loadingSpinnerLight {
+  border-color: rgba(255, 255, 255, 0.36);
+  border-top-color: #ffffff;
+}
+
 @keyframes loading-spin {
   to {
     transform: rotate(360deg);

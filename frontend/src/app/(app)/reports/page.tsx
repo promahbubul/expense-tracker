@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const [to, setTo] = useState('');
   const [statement, setStatement] = useState<ReportStatement | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pdfAction, setPdfAction] = useState<'download' | 'share' | null>(null);
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     if (!silent) {
@@ -192,11 +193,18 @@ export default function ReportsPage() {
   }
 
   async function downloadPdf() {
+    setPdfAction('download');
+    try {
     const doc = await buildPdf();
     doc.save('expense-statement.pdf');
+    } finally {
+      setPdfAction(null);
+    }
   }
 
   async function sharePdf() {
+    setPdfAction('share');
+    try {
     const doc = await buildPdf();
     const blob = doc.output('blob');
     const file = new File([blob], 'expense-statement.pdf', { type: 'application/pdf' });
@@ -206,6 +214,9 @@ export default function ReportsPage() {
       await navigator.share?.({ title: 'Expense Statement', text: 'Expense statement PDF is ready.' });
     } else {
       doc.save('expense-statement.pdf');
+    }
+    } finally {
+      setPdfAction(null);
     }
   }
 
@@ -251,20 +262,21 @@ export default function ReportsPage() {
               </div>
             </>
           ) : null}
-          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)} disabled={loading || Boolean(pdfAction)}>
+            {loading ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : null}
             Generate
           </button>
-          <button className="ghostButton" type="button" onClick={clearFilters} disabled={period === 'monthly' && type === 'all' && !from && !to}>
+          <button className="ghostButton" type="button" onClick={clearFilters} disabled={loading || Boolean(pdfAction) || (period === 'monthly' && type === 'all' && !from && !to)}>
             Clear
           </button>
         </div>
         <div className="toolbarActions">
-          <button className="ghostButton" type="button" onClick={downloadPdf}>
-            <Download size={17} />
+          <button className="ghostButton" type="button" onClick={downloadPdf} disabled={loading || Boolean(pdfAction)}>
+            {pdfAction === 'download' ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Download size={17} />}
             Download PDF
           </button>
-          <button className="button" type="button" onClick={sharePdf}>
-            <Share2 size={17} />
+          <button className="button" type="button" onClick={sharePdf} disabled={loading || Boolean(pdfAction)}>
+            {pdfAction === 'share' ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : <Share2 size={17} />}
             Share
           </button>
         </div>

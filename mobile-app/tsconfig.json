@@ -8,5 +8,5 @@
     "allowSyntheticDefaultImports": true,
     "types": ["react", "node"]
   },
-  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

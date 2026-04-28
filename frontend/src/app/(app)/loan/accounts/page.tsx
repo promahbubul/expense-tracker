@@ -14,6 +14,8 @@ export default function LoanAccountsPage() {
   const [editing, setEditing] = useState<LoanPerson | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     if (!silent) {
@@ -33,6 +35,7 @@ export default function LoanAccountsPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     const form = new FormData(event.currentTarget);
     const body = {
       name: String(form.get('name')),
@@ -52,6 +55,8 @@ export default function LoanAccountsPage() {
       await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -59,8 +64,15 @@ export default function LoanAccountsPage() {
     if (!window.confirm('Delete this loan account?')) {
       return;
     }
-    await http.delete(`/loan/accounts/${id}`);
-    await load({ silent: true });
+    setDeletingId(id);
+    try {
+      await http.delete(`/loan/accounts/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -69,6 +81,7 @@ export default function LoanAccountsPage() {
         <button
           className="button"
           type="button"
+          disabled={submitting || Boolean(deletingId)}
           onClick={() => {
             setEditing(null);
             setOpen(true);
@@ -96,6 +109,7 @@ export default function LoanAccountsPage() {
                 <button
                   className="iconButton"
                   type="button"
+                  disabled={submitting || Boolean(deletingId)}
                   onClick={() => {
                     setEditing(item);
                     setOpen(true);
@@ -104,8 +118,8 @@ export default function LoanAccountsPage() {
                 >
                   <Pencil size={16} />
                 </button>
-                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                  <Trash2 size={16} />
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete" disabled={submitting || Boolean(deletingId)}>
+                  {deletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                 </button>
               </div>
             </td>
@@ -119,10 +133,11 @@ export default function LoanAccountsPage() {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="loanAccountForm">
+            <button className="button" type="submit" form="loanAccountForm" disabled={submitting}>
+              {submitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>

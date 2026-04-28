@@ -29,6 +29,7 @@ export function useInfiniteList<T>(items: T[], step = DEFAULT_STEP) {
 
   const visibleItems = items.slice(0, visibleCount);
   const hasMore = visibleCount < items.length;
+  const actualVisibleCount = visibleItems.length;
 
   function loadMore() {
     if (!hasMore || loadingMore) {
@@ -61,7 +62,7 @@ export function useInfiniteList<T>(items: T[], step = DEFAULT_STEP) {
     hasMore,
     loadingMore,
     onScroll,
-    visibleCount,
+    visibleCount: actualVisibleCount,
     totalCount: items.length,
   };
 }

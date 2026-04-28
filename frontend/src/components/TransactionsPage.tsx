@@ -33,6 +33,8 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const amountClass = categoryType === 'INCOME' ? 'amountIncome' : 'amountExpense';
 
@@ -67,6 +69,7 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     const form = new FormData(event.currentTarget);
     const body = {
       description: String(form.get('description')),
@@ -87,6 +90,8 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       await load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -94,8 +99,15 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
     if (!window.confirm('Delete this record?')) {
       return;
     }
-    await http.delete(`/${endpoint}/${id}`);
-    await load({ silent: true });
+    setDeletingId(id);
+    try {
+      await http.delete(`/${endpoint}/${id}`);
+      await load({ silent: true });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function startCreate() {
@@ -125,15 +137,16 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
             <label>To</label>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
-          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)} disabled={loading}>
+          <button className="ghostButton" type="button" onClick={() => load({ silent: false }).catch(console.error)} disabled={loading || submitting || Boolean(deletingId)}>
+            {loading ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : null}
             Filter
           </button>
-          <button className="ghostButton" type="button" onClick={clearFilters} disabled={!from && !to}>
+          <button className="ghostButton" type="button" onClick={clearFilters} disabled={(!from && !to) || loading || submitting || Boolean(deletingId)}>
             Clear
           </button>
         </div>
         <div className="toolbarActions">
-          <button className="button" type="button" onClick={startCreate}>
+          <button className="button" type="button" onClick={startCreate} disabled={submitting || Boolean(deletingId)}>
             <Plus size={17} />
             Add {title.slice(0, -1)}
           </button>
@@ -155,11 +168,11 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
             <td className={amountClass}>{money(item.amount)}</td>
             <td>
               <div className="actions">
-                <button className="iconButton" type="button" onClick={() => startEdit(item)} aria-label="Edit">
+                <button className="iconButton" type="button" onClick={() => startEdit(item)} aria-label="Edit" disabled={submitting || Boolean(deletingId)}>
                   <Pencil size={16} />
                 </button>
-                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                  <Trash2 size={16} />
+                <button className="iconButton" type="button" onClick={() => remove(item._id)} aria-label="Delete" disabled={submitting || Boolean(deletingId)}>
+                  {deletingId === item._id ? <span className="loadingSpinner loadingSpinnerInline" aria-hidden="true" /> : <Trash2 size={16} />}
                 </button>
               </div>
             </td>
@@ -173,10 +186,11 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="ghostButton" type="button" onClick={() => setOpen(false)}>
+            <button className="ghostButton" type="button" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </button>
-            <button className="button" type="submit" form="transactionForm">
+            <button className="button" type="submit" form="transactionForm" disabled={submitting}>
+              {submitting ? <span className="loadingSpinner loadingSpinnerInline loadingSpinnerLight" aria-hidden="true" /> : null}
               Save
             </button>
           </>
