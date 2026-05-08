@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat, SelectField } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
+import { useToast } from '../providers/ToastProvider';
 import { api } from '../services/api';
 import { ThemePalette, useThemedStyles } from '../theme';
 import { Account, Loan, LoanPerson } from '../types';
@@ -43,15 +44,10 @@ export function LoansScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const peoplePager = useInfiniteList(people);
   const loanPager = useInfiniteList(loans);
+  const toast = useToast();
 
-  async function load(options?: { refresh?: boolean }) {
-    if (options?.refresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
+  async function load(options?: { refresh?: boolean; silent?: boolean }) {
+    const request = async () => {
       const params = new URLSearchParams();
       if (filterPersonId !== 'all') params.set('personId', filterPersonId);
       if (filterDirection !== 'all') params.set('direction', filterDirection);
@@ -66,6 +62,26 @@ export function LoansScreen() {
       setLoans(loanRows);
       setPersonId((current) => current || personRows[0]?._id || '');
       setAccountId((current) => current || accountRows[0]?._id || '');
+    };
+
+    if (options?.refresh) {
+      setRefreshing(true);
+    } else if (options?.silent) {
+      // keep existing UI
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      if (options?.refresh || options?.silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: mode === 'people' ? 'Loading loan people...' : 'Loading loans...',
+          success: mode === 'people' ? 'Loan people updated' : 'Loans updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load loans'),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load loans');
     } finally {
@@ -130,32 +146,48 @@ export function LoansScreen() {
     setSaving(true);
     try {
       if (mode === 'people') {
-        await api(editingPerson ? `/loan/accounts/${editingPerson._id}` : '/loan/accounts', {
-          method: editingPerson ? 'PATCH' : 'POST',
-          body: {
-            name,
-            phone,
-            ...(editingPerson?.updatedAt ? { expectedUpdatedAt: editingPerson.updatedAt } : {}),
+        await toast.track(
+          () =>
+            api(editingPerson ? `/loan/accounts/${editingPerson._id}` : '/loan/accounts', {
+              method: editingPerson ? 'PATCH' : 'POST',
+              body: {
+                name,
+                phone,
+                ...(editingPerson?.updatedAt ? { expectedUpdatedAt: editingPerson.updatedAt } : {}),
+              },
+            }),
+          {
+            loading: editingPerson ? 'Updating loan person...' : 'Saving loan person...',
+            success: editingPerson ? 'Loan person updated' : 'Loan person saved',
+            error: (err) => (err instanceof Error ? err.message : 'Save failed'),
           },
-        });
+        );
         resetPersonForm();
       } else {
-        await api(editingLoan ? `/loan/loads/${editingLoan._id}` : '/loan/loads', {
-          method: editingLoan ? 'PATCH' : 'POST',
-          body: {
-            personId,
-            accountId,
-            direction,
-            purpose,
-            amount: Number(amount),
-            loanDate,
-            ...(editingLoan?.updatedAt ? { expectedUpdatedAt: editingLoan.updatedAt } : {}),
+        await toast.track(
+          () =>
+            api(editingLoan ? `/loan/loads/${editingLoan._id}` : '/loan/loads', {
+              method: editingLoan ? 'PATCH' : 'POST',
+              body: {
+                personId,
+                accountId,
+                direction,
+                purpose,
+                amount: Number(amount),
+                loanDate,
+                ...(editingLoan?.updatedAt ? { expectedUpdatedAt: editingLoan.updatedAt } : {}),
+              },
+            }),
+          {
+            loading: editingLoan ? 'Updating loan...' : 'Saving loan...',
+            success: editingLoan ? 'Loan updated' : 'Loan saved',
+            error: (err) => (err instanceof Error ? err.message : 'Save failed'),
           },
-        });
+        );
         resetLoanForm();
       }
       setOpen(false);
-      await load();
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -178,11 +210,20 @@ export function LoansScreen() {
         style: 'destructive',
         onPress: async () => {
           setPeopleDeletingId(item._id);
+          const previousPeople = people;
+          setPeople((current) => current.filter((entry) => entry._id !== item._id));
           try {
-            await api(`/loan/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
-            await load();
+            await toast.track(
+              () => api(`/loan/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' }),
+              {
+                loading: 'Deleting loan person...',
+                success: 'Loan person deleted',
+                error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+              },
+            );
+            void load({ silent: true });
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Delete failed');
+            setPeople(previousPeople);
           } finally {
             setPeopleDeletingId(null);
           }
@@ -199,11 +240,20 @@ export function LoansScreen() {
         style: 'destructive',
         onPress: async () => {
           setLoanDeletingId(item._id);
+          const previousLoans = loans;
+          setLoans((current) => current.filter((entry) => entry._id !== item._id));
           try {
-            await api(`/loan/loads/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
-            await load();
+            await toast.track(
+              () => api(`/loan/loads/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' }),
+              {
+                loading: 'Deleting loan...',
+                success: 'Loan deleted',
+                error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+              },
+            );
+            void load({ silent: true });
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Delete failed');
+            setLoans(previousLoans);
           } finally {
             setLoanDeletingId(null);
           }

@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import type { LoanPerson } from '@/lib/types';
 import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
@@ -16,19 +17,32 @@ export default function LoanAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    const request = async () => {
+      setItems(await http.get<LoanPerson[]>('/loan/accounts'));
+    };
+
     if (!silent) {
       setLoading(true);
     }
     try {
-      setItems(await http.get<LoanPerson[]>('/loan/accounts'));
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading loan contacts...',
+          success: 'Loan contacts updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load loan contacts'),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [toast]);
 
   useLiveRefresh(load);
 
@@ -45,14 +59,14 @@ export default function LoanAccountsPage() {
     };
 
     try {
-      if (editing) {
-        await http.patch(`/loan/accounts/${editing._id}`, body);
-      } else {
-        await http.post('/loan/accounts', body);
-      }
+      await toast.track(() => (editing ? http.patch(`/loan/accounts/${editing._id}`, body) : http.post('/loan/accounts', body)), {
+        loading: editing ? 'Updating loan contact...' : 'Saving loan contact...',
+        success: editing ? 'Loan contact updated' : 'Loan contact saved',
+        error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+      });
       setOpen(false);
       setEditing(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -65,11 +79,17 @@ export default function LoanAccountsPage() {
       return;
     }
     setDeletingId(id);
+    const previousItems = items;
+    setItems((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/loan/accounts/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/loan/accounts/${id}`), {
+        loading: 'Deleting loan contact...',
+        success: 'Loan contact deleted',
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setItems(previousItems);
     } finally {
       setDeletingId(null);
     }

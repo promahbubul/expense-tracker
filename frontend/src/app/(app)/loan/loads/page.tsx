@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Loan, LoanPerson } from '@/lib/types';
@@ -35,12 +36,10 @@ export default function LoanLoadsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
-    if (!silent) {
-      setLoading(true);
-    }
-    try {
+    const request = async () => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
       if (to) params.set('to', to);
@@ -55,12 +54,27 @@ export default function LoanLoadsPage() {
       setItems(loanRows);
       setPeople(personRows);
       setAccounts(accountRows);
+    };
+
+    if (!silent) {
+      setLoading(true);
+    }
+    try {
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading loans...',
+          success: 'Loans updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load loans'),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [directionFilter, from, personId, to]);
+  }, [directionFilter, from, personId, to, toast]);
 
   useLiveRefresh(load);
 
@@ -89,14 +103,14 @@ export default function LoanLoadsPage() {
     };
 
     try {
-      if (editing) {
-        await http.patch(`/loan/loads/${editing._id}`, body);
-      } else {
-        await http.post('/loan/loads', body);
-      }
+      await toast.track(() => (editing ? http.patch(`/loan/loads/${editing._id}`, body) : http.post('/loan/loads', body)), {
+        loading: editing ? 'Updating loan...' : 'Saving loan...',
+        success: editing ? 'Loan updated' : 'Loan saved',
+        error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+      });
       setOpen(false);
       setEditing(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -109,11 +123,17 @@ export default function LoanLoadsPage() {
       return;
     }
     setDeletingId(id);
+    const previousItems = items;
+    setItems((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/loan/loads/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/loan/loads/${id}`), {
+        loading: 'Deleting loan...',
+        success: 'Loan deleted',
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setItems(previousItems);
     } finally {
       setDeletingId(null);
     }

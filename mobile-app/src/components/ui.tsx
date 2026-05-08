@@ -182,13 +182,13 @@ export function Row({
           </View>
         ) : null}
 
-        {caption ? (
-          <Text style={styles.rowCaption}>{caption}</Text>
-        ) : subtitle ? (
+        {subtitle ? (
           <Text style={styles.rowSubtitle} numberOfLines={2}>
             {subtitle}
           </Text>
         ) : null}
+
+        {caption ? <Text style={styles.rowCaption}>{caption}</Text> : null}
       </View>
 
       {amount || actions ? (

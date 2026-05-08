@@ -61,7 +61,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && !rows.length ? (
               <tr>
                 <td colSpan={colSpan}>
                   <div className="tableLoading">

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchSplash } from '../features/shell/LaunchSplash';
 import { AuthProvider, useAuth } from '../providers/AuthProvider';
+import { ToastProvider } from '../providers/ToastProvider';
 import { ThemeProvider, useAppTheme } from '../theme';
 
 function RootNavigator() {
@@ -26,9 +27,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </ToastProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

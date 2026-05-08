@@ -4,6 +4,7 @@ import { ArrowRightLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Transfer } from '@/lib/types';
@@ -31,21 +32,34 @@ export default function AccountsPage() {
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [accountDeletingId, setAccountDeletingId] = useState<string | null>(null);
   const [transferDeletingId, setTransferDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    const request = async () => {
+      const [accountRows, transferRows] = await Promise.all([http.get<Account[]>('/accounts'), http.get<Transfer[]>('/transfers')]);
+      setItems(accountRows);
+      setTransfers(transferRows);
+    };
+
     if (!silent) {
       setLoading(true);
     }
     try {
-      const [accountRows, transferRows] = await Promise.all([http.get<Account[]>('/accounts'), http.get<Transfer[]>('/transfers')]);
-      setItems(accountRows);
-      setTransfers(transferRows);
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading accounts...',
+          success: 'Accounts updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load accounts'),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [toast]);
 
   useLiveRefresh(load);
 
@@ -62,18 +76,24 @@ export default function AccountsPage() {
     };
 
     try {
-      if (editingAccount) {
-        await http.patch(`/accounts/${editingAccount._id}`, {
-          name: body.name,
-          number: body.number,
-          details: body.details,
-        });
-      } else {
-        await http.post('/accounts', body);
-      }
+      await toast.track(
+        () =>
+          editingAccount
+            ? http.patch(`/accounts/${editingAccount._id}`, {
+                name: body.name,
+                number: body.number,
+                details: body.details,
+              })
+            : http.post('/accounts', body),
+        {
+          loading: editingAccount ? 'Updating account...' : 'Saving account...',
+          success: editingAccount ? 'Account updated' : 'Account saved',
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+        },
+      );
       setAccountOpen(false);
       setEditingAccount(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -96,14 +116,14 @@ export default function AccountsPage() {
     };
 
     try {
-      if (editingTransfer) {
-        await http.patch(`/transfers/${editingTransfer._id}`, body);
-      } else {
-        await http.post('/transfers', body);
-      }
+      await toast.track(() => (editingTransfer ? http.patch(`/transfers/${editingTransfer._id}`, body) : http.post('/transfers', body)), {
+        loading: editingTransfer ? 'Updating transfer...' : 'Saving transfer...',
+        success: editingTransfer ? 'Transfer updated' : 'Transfer saved',
+        error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+      });
       setTransferOpen(false);
       setEditingTransfer(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setTransferError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -116,11 +136,17 @@ export default function AccountsPage() {
       return;
     }
     setAccountDeletingId(id);
+    const previousItems = items;
+    setItems((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/accounts/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/accounts/${id}`), {
+        loading: 'Deleting account...',
+        success: 'Account deleted',
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setItems(previousItems);
     } finally {
       setAccountDeletingId(null);
     }
@@ -131,11 +157,17 @@ export default function AccountsPage() {
       return;
     }
     setTransferDeletingId(id);
+    const previousTransfers = transfers;
+    setTransfers((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/transfers/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/transfers/${id}`), {
+        loading: 'Deleting transfer...',
+        success: 'Transfer deleted',
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setTransfers(previousTransfers);
     } finally {
       setTransferDeletingId(null);
     }
@@ -180,7 +212,7 @@ export default function AccountsPage() {
         <DataTable
           rows={items}
           loading={loading}
-          columns={['Name', 'Number', 'Details', 'Initial Deposit', 'Current Balance', 'Action']}
+          columns={['Name', 'Number', 'Details', 'Opening Balance', 'Current Balance', 'Action']}
           colSpan={6}
           emptyMessage="No accounts found."
           renderRow={(item) => (
@@ -289,7 +321,7 @@ export default function AccountsPage() {
           </div>
           {!editingAccount ? (
             <div className="field">
-              <label>Initial Deposit</label>
+              <label>Opening Balance</label>
               <input name="initialBalance" type="number" min="0" step="0.01" defaultValue="0" />
             </div>
           ) : null}

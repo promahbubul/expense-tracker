@@ -5,6 +5,7 @@ import { Card, DateField, EmptyState, IconButton, LoadingBlock, LoadingFooter, S
 import { ReportStatusCards } from '../features/reports/ReportStatusCards';
 import { createPdfFile, kindLabel } from '../features/reports/report-pdf';
 import { useInfiniteList } from '../hooks/useInfiniteList';
+import { useToast } from '../providers/ToastProvider';
 import { api } from '../services/api';
 import { ThemePalette, useThemedStyles } from '../theme';
 import { ReportStatement } from '../types';
@@ -42,10 +43,28 @@ export function ReportsScreen() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const pager = useInfiniteList(data?.rows ?? []);
+  const toast = useToast();
 
-  async function load(nextPeriod: Period = period, nextType: ReportType = type, nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean; filter?: boolean }) {
+  async function load(
+    nextPeriod: Period = period,
+    nextType: ReportType = type,
+    nextFrom: string = from,
+    nextTo: string = to,
+    options?: { refresh?: boolean; filter?: boolean; silent?: boolean },
+  ) {
+    const request = async () => {
+      const params = new URLSearchParams({ period: nextPeriod, type: nextType });
+      if (nextPeriod === 'custom') {
+        if (nextFrom) params.set('from', nextFrom);
+        if (nextTo) params.set('to', nextTo);
+      }
+      setData(await api<ReportStatement>(`/reports/statement?${params.toString()}`));
+    };
+
     if (options?.refresh) {
       setRefreshing(true);
+    } else if (options?.silent) {
+      // keep current rows
     } else if (options?.filter) {
       setFilterLoading(true);
     } else {
@@ -54,12 +73,15 @@ export function ReportsScreen() {
 
     setError('');
     try {
-      const params = new URLSearchParams({ period: nextPeriod, type: nextType });
-      if (nextPeriod === 'custom') {
-        if (nextFrom) params.set('from', nextFrom);
-        if (nextTo) params.set('to', nextTo);
+      if (options?.refresh || options?.silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading reports...',
+          success: 'Reports updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load reports'),
+        });
       }
-      setData(await api<ReportStatement>(`/reports/statement?${params.toString()}`));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load reports');
     } finally {

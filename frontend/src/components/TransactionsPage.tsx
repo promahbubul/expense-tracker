@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import { money, refName, shortDate } from '@/lib/format';
 import type { Account, Category, CategoryType, Transaction } from '@/lib/types';
@@ -35,14 +36,12 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const amountClass = categoryType === 'INCOME' ? 'amountIncome' : 'amountExpense';
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
-    if (!silent) {
-      setLoading(true);
-    }
-    try {
+    const request = async () => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
       if (to) params.set('to', to);
@@ -55,12 +54,27 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       setItems(records);
       setAccounts(accountRows);
       setCategories(categoryRows);
+    };
+
+    if (!silent) {
+      setLoading(true);
+    }
+    try {
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: `Loading ${title.toLowerCase()}...`,
+          success: `${title} updated`,
+          error: (err) => (err instanceof Error ? err.message : `Could not load ${title.toLowerCase()}`),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [categoryType, endpoint, from, to]);
+  }, [categoryType, endpoint, from, title, to, toast]);
 
   useLiveRefresh(load);
 
@@ -80,14 +94,17 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
     };
 
     try {
-      if (editing) {
-        await http.patch(`/${endpoint}/${editing._id}`, body);
-      } else {
-        await http.post(`/${endpoint}`, body);
-      }
+      await toast.track(
+        () => (editing ? http.patch(`/${endpoint}/${editing._id}`, body) : http.post(`/${endpoint}`, body)),
+        {
+          loading: editing ? `Updating ${title.slice(0, -1).toLowerCase()}...` : `Saving ${title.slice(0, -1).toLowerCase()}...`,
+          success: editing ? `${title.slice(0, -1)} updated` : `${title.slice(0, -1)} saved`,
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+        },
+      );
       setOpen(false);
       setEditing(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -100,11 +117,17 @@ export function TransactionsPage({ endpoint, title, categoryType }: Props) {
       return;
     }
     setDeletingId(id);
+    const previousItems = items;
+    setItems((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/${endpoint}/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/${endpoint}/${id}`), {
+        loading: `Deleting ${title.slice(0, -1).toLowerCase()}...`,
+        success: `${title.slice(0, -1)} deleted`,
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setItems(previousItems);
     } finally {
       setDeletingId(null);
     }

@@ -4,6 +4,7 @@ import { AppIcon } from '../components/icons';
 import { Button, Card, DateField, EmptyState, LoadingBlock, Row, Screen, ScreenHeader, SectionTitle, SelectField, Stat } from '../components/ui';
 import { CashFlowChart } from '../features/dashboard/components/CashFlowChart';
 import { IncomeExpensePie } from '../features/dashboard/components/IncomeExpensePie';
+import { useToast } from '../providers/ToastProvider';
 import { api } from '../services/api';
 import { ThemePalette, useAppTheme, useThemedStyles } from '../theme';
 import { DashboardSummary } from '../types';
@@ -40,21 +41,36 @@ export function DashboardScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const toast = useToast();
 
-  async function load(nextPeriod: Period = period, nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean }) {
-    if (options?.refresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError('');
-    try {
+  async function load(nextPeriod: Period = period, nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean; silent?: boolean }) {
+    const request = async () => {
       const params = new URLSearchParams({ period: nextPeriod });
       if (nextPeriod === 'custom') {
         if (nextFrom) params.set('from', nextFrom);
         if (nextTo) params.set('to', nextTo);
       }
       setData(await api<DashboardSummary>(`/dashboard/summary?${params.toString()}`));
+    };
+
+    if (options?.refresh) {
+      setRefreshing(true);
+    } else if (options?.silent) {
+      // keep current data
+    } else {
+      setLoading(true);
+    }
+    setError('');
+    try {
+      if (options?.refresh || options?.silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading dashboard...',
+          success: 'Dashboard updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load dashboard'),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load dashboard');
     } finally {

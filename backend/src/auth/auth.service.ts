@@ -1,15 +1,17 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import { Model } from 'mongoose';
+import type { ClientSession, Connection, Model } from 'mongoose';
 import * as nodemailer from 'nodemailer';
 import { Account } from '../accounts/account.schema';
 import { Category } from '../categories/category.schema';
 import { CategoryType, JwtUser } from '../common/types';
+import { runWithOptionalTransaction } from '../common/utils/mongo-transaction';
+import { hashSecurityToken } from '../common/utils/security-token';
 import { User } from '../users/user.schema';
-import { ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto, VerifyEmailDto } from './dto/auth.dto';
+import { ForgotPasswordDto, LoginDto, ResendVerificationDto, ResetPasswordDto, SignupDto, VerifyEmailDto } from './dto/auth.dto';
 
 type GoogleTokenResponse = {
   access_token?: string;
@@ -35,6 +37,7 @@ export class AuthService {
     @InjectModel(Account.name) private readonly accounts: Model<Account>,
     @InjectModel(Category.name) private readonly categories: Model<Category>,
     private readonly jwt: JwtService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -45,20 +48,52 @@ export class AuthService {
     }
 
     const verificationToken = this.generateToken();
+    const verificationTokenHash = hashSecurityToken(verificationToken);
     const verificationExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const password = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.users.create({
-      name: dto.name,
-      email,
-      phone: dto.phone,
-      password: await bcrypt.hash(dto.password, 10),
-      emailVerified: false,
-      emailVerificationToken: verificationToken,
-      emailVerificationExpiresAt: verificationExpiresAt,
-      authProvider: 'LOCAL',
-    });
+    const user = await runWithOptionalTransaction(
+      this.connection,
+      async (session) => {
+        const [created] = await this.users.create(
+          [
+            {
+              name: dto.name,
+              email,
+              phone: dto.phone,
+              password,
+              emailVerified: false,
+              emailVerificationToken: verificationTokenHash,
+              emailVerificationExpiresAt: verificationExpiresAt,
+              authProvider: 'LOCAL',
+            },
+          ],
+          { session },
+        );
+        await this.bootstrapWorkspace(created._id.toString(), session);
+        return created;
+      },
+      async () => {
+        const created = await this.users.create({
+          name: dto.name,
+          email,
+          phone: dto.phone,
+          password,
+          emailVerified: false,
+          emailVerificationToken: verificationTokenHash,
+          emailVerificationExpiresAt: verificationExpiresAt,
+          authProvider: 'LOCAL',
+        });
 
-    await this.bootstrapWorkspace(user._id.toString());
+        try {
+          await this.bootstrapWorkspace(created._id.toString());
+          return created;
+        } catch (error) {
+          await this.users.deleteOne({ _id: created._id });
+          throw error;
+        }
+      },
+    );
 
     let message: string | undefined;
     let emailDeliveryFailed = false;
@@ -77,9 +112,10 @@ export class AuthService {
     }
 
     return {
-      ...this.authPayload(user),
+      success: true,
+      requiresEmailVerification: true,
       emailDeliveryFailed,
-      message,
+      message: message ?? 'Account created. Verify your email before signing in.',
     };
   }
 
@@ -88,6 +124,9 @@ export class AuthService {
     if (!user || !user.isActive || !user.password || !(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    if ((user.authProvider ?? 'LOCAL') !== 'GOOGLE' && !user.emailVerified) {
+      throw new UnauthorizedException('Please verify your email before signing in.');
+    }
     return this.authPayload(user);
   }
 
@@ -95,30 +134,58 @@ export class AuthService {
     this.ensureMailConfigured();
 
     const user = await this.users.findOne({ email: dto.email.toLowerCase(), isActive: true });
-    if (!user) {
-      throw new NotFoundException('No active account found for this email');
+    if (!user || !user.password) {
+      return this.buildPasswordResetResponse();
     }
 
     const resetToken = this.generateToken();
     const passwordResetExpiresAt = new Date(Date.now() + 1000 * 60 * 30);
 
     await this.users.findByIdAndUpdate(user._id, {
-      passwordResetToken: resetToken,
+      passwordResetToken: hashSecurityToken(resetToken),
       passwordResetExpiresAt,
     });
 
     await this.sendPasswordResetEmail(user.email, user.name, resetToken);
 
+    return this.buildPasswordResetResponse(passwordResetExpiresAt);
+  }
+
+  async resendVerification(dto: ResendVerificationDto) {
+    this.ensureMailConfigured();
+
+    const user = await this.users.findOne({
+      email: dto.email.toLowerCase(),
+      isActive: true,
+      authProvider: { $ne: 'GOOGLE' },
+      emailVerified: false,
+    });
+
+    if (!user) {
+      return {
+        success: true,
+        message: 'If this email can receive verification mail, a new link has been sent.',
+      };
+    }
+
+    const verificationToken = this.generateToken();
+    const verificationExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+    user.emailVerificationToken = hashSecurityToken(verificationToken);
+    user.emailVerificationExpiresAt = verificationExpiresAt;
+    await user.save();
+
+    await this.sendVerificationEmailIfConfigured(user.email, user.name, verificationToken);
+
     return {
       success: true,
-      expiresAt: passwordResetExpiresAt,
-      message: 'Password reset link sent. Please check your email.',
+      message: 'If this email can receive verification mail, a new link has been sent.',
     };
   }
 
   async verifyEmail(dto: VerifyEmailDto) {
     const user = await this.users.findOne({
-      emailVerificationToken: dto.token,
+      emailVerificationToken: hashSecurityToken(dto.token),
       emailVerificationExpiresAt: { $gt: new Date() },
       isActive: true,
     });
@@ -141,7 +208,7 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto) {
     const user = await this.users.findOne({
       email: dto.email.toLowerCase(),
-      passwordResetToken: dto.resetToken,
+      passwordResetToken: hashSecurityToken(dto.resetToken),
       passwordResetExpiresAt: { $gt: new Date() },
       isActive: true,
     });
@@ -218,7 +285,12 @@ export class AuthService {
           authProvider: 'GOOGLE',
           password: '',
         });
-        await this.bootstrapWorkspace(user._id.toString());
+        try {
+          await this.bootstrapWorkspace(user._id.toString());
+        } catch (error) {
+          await this.users.deleteOne({ _id: user._id });
+          throw error;
+        }
       } else {
         if (!user.isActive) {
           throw new UnauthorizedException('This account is inactive');
@@ -341,6 +413,14 @@ export class AuthService {
 
   private generateToken() {
     return randomBytes(24).toString('hex');
+  }
+
+  private buildPasswordResetResponse(expiresAt = new Date(Date.now() + 1000 * 60 * 30)) {
+    return {
+      success: true,
+      expiresAt,
+      message: 'If the account exists, a password reset link has been sent.',
+    };
   }
 
   private displayNameFromEmail(email: string) {
@@ -540,16 +620,21 @@ export class AuthService {
       .replace(/'/g, '&#39;');
   }
 
-  private async bootstrapWorkspace(userId: string) {
-    await this.accounts.create({
-      name: 'Main Wallet',
-      details: 'Personal cash balance',
-      initialBalance: 0,
-      currentBalance: 0,
-      userId,
-    });
+  private async bootstrapWorkspace(userId: string, session?: ClientSession) {
+    await this.accounts.create(
+      [
+        {
+          name: 'Main Wallet',
+          details: 'Personal cash balance',
+          initialBalance: 0,
+          currentBalance: 0,
+          userId,
+        },
+      ],
+      session ? { session } : undefined,
+    );
 
-    await this.categories.insertMany([
+    const categories = [
       { name: 'Salary', type: CategoryType.INCOME, userId },
       { name: 'Freelance', type: CategoryType.INCOME, userId },
       { name: 'Business', type: CategoryType.INCOME, userId },
@@ -557,7 +642,14 @@ export class AuthService {
       { name: 'Transport', type: CategoryType.EXPENSE, userId },
       { name: 'Bills', type: CategoryType.EXPENSE, userId },
       { name: 'Shopping', type: CategoryType.EXPENSE, userId },
-    ]);
+    ];
+
+    if (session) {
+      await this.categories.insertMany(categories, { session });
+      return;
+    }
+
+    await this.categories.insertMany(categories);
   }
 
   private authPayload(user: User) {

@@ -15,7 +15,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { palette, resolvedMode } = useAppTheme();
-  const { login, signup, forgotPassword, continueWithGoogle } = useAuth();
+  const { login, signup, forgotPassword, resendVerification, continueWithGoogle } = useAuth();
   const styles = createStyles(palette);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,9 +45,8 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
         saveOnDevice,
       });
 
-      if (response.message) {
-        Alert.alert('Account created', response.message);
-      }
+      Alert.alert('Account created', response.message || 'Verify your email before signing in.');
+      router.replace('/sign-in');
     } catch (err) {
       setError(err instanceof Error ? err.message : `${isLogin ? 'Login' : 'Signup'} failed`);
     } finally {
@@ -72,6 +71,28 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
       Alert.alert('Reset Requested', response.message || 'Password reset link sent');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Reset request failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function requestVerification() {
+    if (!email) {
+      setError('Enter your email first');
+      setNotice('');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+
+    try {
+      const response = await resendVerification(email);
+      setNotice(response.message);
+      Alert.alert('Verification email', response.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Verification request failed');
     } finally {
       setLoading(false);
     }
@@ -159,6 +180,9 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             <View style={styles.linkRow}>
               <TouchableOpacity onPress={() => requestReset().catch(console.error)} activeOpacity={0.8} disabled={loading}>
                 <Text style={styles.link}>Forgot password?</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => requestVerification().catch(console.error)} activeOpacity={0.8} disabled={loading}>
+                <Text style={styles.link}>Resend verification</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.replace('/sign-up')} activeOpacity={0.8}>
                 <Text style={styles.link}>Sign up</Text>

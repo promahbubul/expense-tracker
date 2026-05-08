@@ -3,6 +3,7 @@
 import { Download, Share2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { ReportStatement } from '@/lib/types';
@@ -29,24 +30,37 @@ export default function ReportsPage() {
   const [statement, setStatement] = useState<ReportStatement | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfAction, setPdfAction] = useState<'download' | 'share' | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
-    if (!silent) {
-      setLoading(true);
-    }
-    try {
+    const request = async () => {
       const params = new URLSearchParams({ period, type });
       if (period === 'custom') {
         if (from) params.set('from', from);
         if (to) params.set('to', to);
       }
       setStatement(await http.get<ReportStatement>(`/reports/statement?${params}`));
+    };
+
+    if (!silent) {
+      setLoading(true);
+    }
+    try {
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading reports...',
+          success: 'Report updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load reports'),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [from, period, to, type]);
+  }, [from, period, to, toast, type]);
 
   useLiveRefresh(load);
 

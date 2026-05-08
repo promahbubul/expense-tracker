@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { FormEvent, useCallback, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import type { Category, CategoryType } from '@/lib/types';
 import { type LiveRefreshOptions, useLiveRefresh } from '@/lib/useLiveRefresh';
@@ -22,19 +23,32 @@ export function CategoryManager({ type, toolbarStart }: Props) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
+    const request = async () => {
+      setItems(await http.get<Category[]>(`/categories?type=${type}`));
+    };
+
     if (!silent) {
       setLoading(true);
     }
     try {
-      setItems(await http.get<Category[]>(`/categories?type=${type}`));
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: `Loading ${type === 'EXPENSE' ? 'expense' : 'income'} categories...`,
+          success: 'Categories updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load categories'),
+        });
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [type]);
+  }, [toast, type]);
 
   useLiveRefresh(load);
 
@@ -44,14 +58,17 @@ export function CategoryManager({ type, toolbarStart }: Props) {
     setSubmitting(true);
     const form = new FormData(event.currentTarget);
     try {
-      if (editing) {
-        await http.patch(`/categories/${editing._id}`, { name: String(form.get('name')) });
-      } else {
-        await http.post('/categories', { name: String(form.get('name')), type });
-      }
+      await toast.track(
+        () => (editing ? http.patch(`/categories/${editing._id}`, { name: String(form.get('name')) }) : http.post('/categories', { name: String(form.get('name')), type })),
+        {
+          loading: editing ? 'Updating category...' : 'Saving category...',
+          success: editing ? 'Category updated' : 'Category saved',
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
+        },
+      );
       setOpen(false);
       setEditing(null);
-      await load({ silent: true });
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -64,11 +81,17 @@ export function CategoryManager({ type, toolbarStart }: Props) {
       return;
     }
     setDeletingId(id);
+    const previousItems = items;
+    setItems((current) => current.filter((item) => item._id !== id));
     try {
-      await http.delete(`/categories/${id}`);
-      await load({ silent: true });
+      await toast.track(() => http.delete(`/categories/${id}`), {
+        loading: 'Deleting category...',
+        success: 'Category deleted',
+        error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+      });
+      void load({ silent: true });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Delete failed');
+      setItems(previousItems);
     } finally {
       setDeletingId(null);
     }

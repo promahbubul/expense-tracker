@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PeriodTabs, type PeriodValue } from '@/components/PeriodTabs';
+import { useToast } from '@/components/ToastProvider';
 import { http } from '@/lib/api';
 import { money, shortDate } from '@/lib/format';
 import type { DashboardSummary } from '@/lib/types';
@@ -84,16 +85,12 @@ export default function DashboardPage() {
   const requestIdRef = useRef(0);
   const filterLoadReadyRef = useRef(false);
   const isCustom = period === 'custom';
+  const toast = useToast();
 
   const loadSummary = useCallback(async ({ silent = false }: LiveRefreshOptions = {}) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    if (!silent) {
-      setLoading(true);
-    }
-    setError('');
-
-    try {
+    const request = async () => {
       const params = new URLSearchParams({ period });
       if (period === 'custom') {
         if (from) {
@@ -109,6 +106,23 @@ export default function DashboardPage() {
         return;
       }
       setSummary(response);
+    };
+
+    if (!silent) {
+      setLoading(true);
+    }
+    setError('');
+
+    try {
+      if (silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: 'Loading dashboard...',
+          success: 'Dashboard updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load dashboard'),
+        });
+      }
     } catch (err) {
       if (requestId !== requestIdRef.current) {
         return;
@@ -119,7 +133,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
-  }, [from, period, to]);
+  }, [from, period, to, toast]);
 
   useLiveRefresh(loadSummary);
 

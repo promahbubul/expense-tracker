@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Row, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, Stat } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
+import { useToast } from '../providers/ToastProvider';
 import { api } from '../services/api';
 import { ThemePalette, useThemedStyles } from '../theme';
 import { Account, Transfer } from '../types';
@@ -37,20 +38,35 @@ export function AccountsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const accountPager = useInfiniteList(items);
   const transferPager = useInfiniteList(transfers);
+  const toast = useToast();
 
-  async function load(options?: { refresh?: boolean }) {
-    if (options?.refresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
+  async function load(options?: { refresh?: boolean; silent?: boolean }) {
+    const request = async () => {
       const [accountRows, transferRows] = await Promise.all([api<Account[]>('/accounts'), api<Transfer[]>('/transfers')]);
       setItems(accountRows);
       setTransfers(transferRows);
       setFromAccountId((current) => current || accountRows[0]?._id || '');
       setToAccountId((current) => current || accountRows[1]?._id || accountRows[0]?._id || '');
+    };
+
+    if (options?.refresh) {
+      setRefreshing(true);
+    } else if (options?.silent) {
+      // keep current UI
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      if (options?.refresh || options?.silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: mode === 'accounts' ? 'Loading accounts...' : 'Loading transfers...',
+          success: mode === 'accounts' ? 'Accounts updated' : 'Transfers updated',
+          error: (err) => (err instanceof Error ? err.message : 'Could not load accounts'),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load accounts');
     } finally {
@@ -93,19 +109,27 @@ export function AccountsScreen() {
     setError('');
     setAccountSaving(true);
     try {
-      await api(editingAccount ? `/accounts/${editingAccount._id}` : '/accounts', {
-        method: editingAccount ? 'PATCH' : 'POST',
-        body: {
-          name,
-          number,
-          details,
-          ...(!editingAccount ? { initialBalance: Number(balance || 0) } : {}),
-          ...(editingAccount?.updatedAt ? { expectedUpdatedAt: editingAccount.updatedAt } : {}),
+      await toast.track(
+        () =>
+          api(editingAccount ? `/accounts/${editingAccount._id}` : '/accounts', {
+            method: editingAccount ? 'PATCH' : 'POST',
+            body: {
+              name,
+              number,
+              details,
+              ...(!editingAccount ? { initialBalance: Number(balance || 0) } : {}),
+              ...(editingAccount?.updatedAt ? { expectedUpdatedAt: editingAccount.updatedAt } : {}),
+            },
+          }),
+        {
+          loading: editingAccount ? 'Updating account...' : 'Saving account...',
+          success: editingAccount ? 'Account updated' : 'Account saved',
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
         },
-      });
+      );
       resetAccountForm();
       setAccountOpen(false);
-      await load();
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -141,25 +165,33 @@ export function AccountsScreen() {
     setError('');
     setTransferSaving(true);
     try {
-      await api(editingTransfer ? `/transfers/${editingTransfer._id}` : '/transfers', {
-        method: editingTransfer ? 'PATCH' : 'POST',
-        body: {
-          fromAccountId,
-          toAccountId,
-          amount: Number(transferAmount || 0),
-          fee: Number(fee || 0),
-          note,
-          transferDate,
-          ...(editingTransfer?.updatedAt ? { expectedUpdatedAt: editingTransfer.updatedAt } : {}),
+      await toast.track(
+        () =>
+          api(editingTransfer ? `/transfers/${editingTransfer._id}` : '/transfers', {
+            method: editingTransfer ? 'PATCH' : 'POST',
+            body: {
+              fromAccountId,
+              toAccountId,
+              amount: Number(transferAmount || 0),
+              fee: Number(fee || 0),
+              note,
+              transferDate,
+              ...(editingTransfer?.updatedAt ? { expectedUpdatedAt: editingTransfer.updatedAt } : {}),
+            },
+          }),
+        {
+          loading: editingTransfer ? 'Updating transfer...' : 'Saving transfer...',
+          success: editingTransfer ? 'Transfer updated' : 'Transfer saved',
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
         },
-      });
+      );
       setEditingTransfer(null);
       setTransferAmount('');
       setFee('');
       setNote('');
       setTransferDate(dateInputValue());
       setTransferOpen(false);
-      await load();
+      void load({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -187,11 +219,20 @@ export function AccountsScreen() {
         style: 'destructive',
         onPress: async () => {
           setAccountDeletingId(item._id);
+          const previousItems = items;
+          setItems((current) => current.filter((entry) => entry._id !== item._id));
           try {
-            await api(`/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
-            await load();
+            await toast.track(
+              () => api(`/accounts/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' }),
+              {
+                loading: 'Deleting account...',
+                success: 'Account deleted',
+                error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+              },
+            );
+            void load({ silent: true });
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Delete failed');
+            setItems(previousItems);
           } finally {
             setAccountDeletingId(null);
           }
@@ -208,11 +249,20 @@ export function AccountsScreen() {
         style: 'destructive',
         onPress: async () => {
           setTransferDeletingId(item._id);
+          const previousTransfers = transfers;
+          setTransfers((current) => current.filter((entry) => entry._id !== item._id));
           try {
-            await api(`/transfers/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
-            await load();
+            await toast.track(
+              () => api(`/transfers/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' }),
+              {
+                loading: 'Deleting transfer...',
+                success: 'Transfer deleted',
+                error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+              },
+            );
+            void load({ silent: true });
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Delete failed');
+            setTransfers(previousTransfers);
           } finally {
             setTransferDeletingId(null);
           }
@@ -265,6 +315,7 @@ export function AccountsScreen() {
                   key={item._id}
                   title={item.name}
                   meta={[item.number || 'No number']}
+                  subtitle={`Opening ${money(item.initialBalance)}`}
                   caption={item.details || 'Account balance'}
                   amount={money(item.currentBalance)}
                   actions={
@@ -313,7 +364,7 @@ export function AccountsScreen() {
         <Field label="Name" value={name} onChangeText={setName} />
         <Field label="Number" value={number} onChangeText={setNumber} />
         <Field label="Details" value={details} onChangeText={setDetails} multiline />
-        {!editingAccount ? <Field label="Initial Deposit" value={balance} onChangeText={setBalance} numeric /> : null}
+        {!editingAccount ? <Field label="Opening Balance" value={balance} onChangeText={setBalance} numeric /> : null}
         {error ? <EmptyState title={error} /> : null}
         <Button label={editingAccount ? 'Update' : 'Save'} onPress={saveAccount} loading={accountSaving} disabled={!name} />
       </Sheet>

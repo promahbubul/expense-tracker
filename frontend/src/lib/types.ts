@@ -22,6 +22,18 @@ export type AuthResponse = {
   message?: string;
 };
 
+export type SignupResponse = {
+  success: boolean;
+  requiresEmailVerification: boolean;
+  emailDeliveryFailed?: boolean;
+  message?: string;
+};
+
+export type GenericSuccessResponse = {
+  success: boolean;
+  message: string;
+};
+
 export type PasswordResetSession = {
   success: boolean;
   expiresAt: string;

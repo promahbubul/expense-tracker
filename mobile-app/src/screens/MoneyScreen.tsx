@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Chip, DateField, EmptyState, Field, IconButton, LoadingBlock, LoadingFooter, Screen, ScreenHeader, SectionTitle, Segmented, Sheet, StickyBar } from '../components/ui';
 import { useInfiniteList } from '../hooks/useInfiniteList';
+import { useToast } from '../providers/ToastProvider';
 import { api } from '../services/api';
 import { ThemePalette, useThemedStyles } from '../theme';
 import { Account, Category, Transaction } from '../types';
@@ -31,17 +32,10 @@ export function MoneyScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const pager = useInfiniteList(items);
+  const toast = useToast();
 
-  async function load(nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean; filter?: boolean }) {
-    if (options?.refresh) {
-      setRefreshing(true);
-    } else if (options?.filter) {
-      setFiltering(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
+  async function load(nextFrom: string = from, nextTo: string = to, options?: { refresh?: boolean; filter?: boolean; silent?: boolean }) {
+    const request = async () => {
       const type = mode === 'expenses' ? 'EXPENSE' : 'INCOME';
       const params = new URLSearchParams();
       if (nextFrom) params.set('from', nextFrom);
@@ -57,6 +51,28 @@ export function MoneyScreen() {
       setCategories(categoryRows);
       setAccountId((current) => current || accountRows[0]?._id || '');
       setCategoryId((current) => current || categoryRows[0]?._id || '');
+    };
+
+    if (options?.refresh) {
+      setRefreshing(true);
+    } else if (options?.silent) {
+      // no visible local loading state
+    } else if (options?.filter) {
+      setFiltering(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      if (options?.refresh || options?.silent) {
+        await request();
+      } else {
+        await toast.track(request, {
+          loading: `Loading ${mode}...`,
+          success: `${mode === 'expenses' ? 'Expenses' : 'Incomes'} updated`,
+          error: (err) => (err instanceof Error ? err.message : 'Could not load money data'),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load money data');
     } finally {
@@ -99,20 +115,28 @@ export function MoneyScreen() {
     setSaving(true);
     try {
       const path = editingItem ? `/${mode}/${editingItem._id}` : `/${mode}`;
-      await api(path, {
-        method: editingItem ? 'PATCH' : 'POST',
-        body: {
-          description,
-          amount: Number(amount),
-          accountId,
-          categoryId,
-          transactionDate: entryDate,
-          ...(editingItem?.updatedAt ? { expectedUpdatedAt: editingItem.updatedAt } : {}),
+      await toast.track(
+        () =>
+          api(path, {
+            method: editingItem ? 'PATCH' : 'POST',
+            body: {
+              description,
+              amount: Number(amount),
+              accountId,
+              categoryId,
+              transactionDate: entryDate,
+              ...(editingItem?.updatedAt ? { expectedUpdatedAt: editingItem.updatedAt } : {}),
+            },
+          }),
+        {
+          loading: editingItem ? `Updating ${mode === 'expenses' ? 'expense' : 'income'}...` : `Saving ${mode === 'expenses' ? 'expense' : 'income'}...`,
+          success: editingItem ? 'Entry updated' : 'Entry saved',
+          error: (err) => (err instanceof Error ? err.message : 'Save failed'),
         },
-      });
+      );
       resetForm();
       setOpen(false);
-      await load();
+      void load(from, to, { silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -134,11 +158,20 @@ export function MoneyScreen() {
         style: 'destructive',
         onPress: async () => {
           setDeletingId(item._id);
+          const previousItems = items;
+          setItems((current) => current.filter((entry) => entry._id !== item._id));
           try {
-            await api(`/${mode}/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' });
-            await load();
+            await toast.track(
+              () => api(`/${mode}/${item._id}${item.updatedAt ? `?expectedUpdatedAt=${encodeURIComponent(item.updatedAt)}` : ''}`, { method: 'DELETE' }),
+              {
+                loading: `Deleting ${mode === 'expenses' ? 'expense' : 'income'}...`,
+                success: 'Entry deleted',
+                error: (err) => (err instanceof Error ? err.message : 'Delete failed'),
+              },
+            );
+            void load(from, to, { silent: true });
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Delete failed');
+            setItems(previousItems);
           } finally {
             setDeletingId(null);
           }

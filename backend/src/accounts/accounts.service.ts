@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { ClientSession, Model } from 'mongoose';
 import { JwtUser } from '../common/types';
 import { assertNotStale } from '../common/utils/optimistic-lock';
 import { Account } from './account.schema';
@@ -56,15 +56,15 @@ export class AccountsService {
     return { success: true };
   }
 
-  async adjustBalance(accountId: string, userId: string, delta: number) {
+  async adjustBalance(accountId: string, userId: string, delta: number, session?: ClientSession) {
     const filter: Record<string, unknown> = { _id: accountId, userId, isActive: true };
     if (delta < 0) {
       filter.currentBalance = { $gte: Math.abs(delta) };
     }
 
-    const account = await this.accounts.findOneAndUpdate(filter, { $inc: { currentBalance: delta } }, { new: true });
+    const account = await this.accounts.findOneAndUpdate(filter, { $inc: { currentBalance: delta } }, { new: true, session });
     if (!account) {
-      const exists = await this.accounts.findOne({ _id: accountId, userId, isActive: true });
+      const exists = await this.accounts.findOne({ _id: accountId, userId, isActive: true }).session(session ?? null);
       if (!exists) {
         throw new NotFoundException('Account not found');
       }

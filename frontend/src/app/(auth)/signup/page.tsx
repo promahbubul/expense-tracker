@@ -1,15 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { AuthLayout } from '@/components/AuthLayout';
-import { buildGoogleAuthStartUrl, http, storeSession } from '@/lib/api';
-import type { AuthResponse } from '@/lib/types';
+import { buildGoogleAuthStartUrl, http } from '@/lib/api';
+import type { SignupResponse } from '@/lib/types';
 
 export default function SignupPage() {
-  const router = useRouter();
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -39,17 +38,18 @@ export default function SignupPage() {
     event.preventDefault();
     setLoading(true);
     setError('');
+    setNotice('');
     const form = new FormData(event.currentTarget);
     const email = String(form.get('email'));
 
     try {
-      const response = await http.post<AuthResponse>('/auth/signup', {
+      const response = await http.post<SignupResponse>('/auth/signup', {
         name: displayNameFromEmail(email),
         email,
         password: String(form.get('password')),
       });
-      storeSession(response.accessToken, response.user);
-      router.replace('/');
+      setNotice(response.message || 'Account created. Verify your email before signing in.');
+      event.currentTarget.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
@@ -69,6 +69,7 @@ export default function SignupPage() {
           <input name="password" type="password" placeholder="Password" required minLength={6} />
         </div>
         {error ? <p className="errorText">{error}</p> : null}
+        {notice ? <p className="muted authNotice">{notice}</p> : null}
         <button className="button" type="submit" disabled={loading}>
           {loading ? 'Creating account...' : 'Create account'}
         </button>

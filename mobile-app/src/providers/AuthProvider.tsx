@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { signInWithGoogle } from '../services/google-auth';
 import { api, setToken } from '../services/api';
-import { AuthResponse, AuthUser, PasswordResetSession } from '../types';
+import { AuthResponse, AuthUser, GenericSuccessResponse, PasswordResetSession, SignupResponse } from '../types';
 
 const TOKEN_KEY = 'expense_token';
 const USER_KEY = 'expense_user';
@@ -11,9 +11,10 @@ type AuthContextValue = {
   ready: boolean;
   user: AuthUser | null;
   login: (input: { email: string; password: string; saveOnDevice: boolean }) => Promise<AuthResponse>;
-  signup: (input: { name: string; email: string; password: string; saveOnDevice: boolean }) => Promise<AuthResponse>;
+  signup: (input: { name: string; email: string; password: string; saveOnDevice: boolean }) => Promise<SignupResponse>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<PasswordResetSession>;
+  resendVerification: (email: string) => Promise<GenericSuccessResponse>;
   continueWithGoogle: (saveOnDevice: boolean) => Promise<AuthResponse>;
 };
 
@@ -64,12 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signup(input: { name: string; email: string; password: string; saveOnDevice: boolean }) {
-    const response = await api<AuthResponse>('/auth/signup', {
+    return api<SignupResponse>('/auth/signup', {
       method: 'POST',
       body: { name: input.name, email: input.email, password: input.password },
     });
-    await persistSession(response, input.saveOnDevice);
-    return response;
   }
 
   async function logout() {
@@ -80,6 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function forgotPassword(email: string) {
     return api<PasswordResetSession>('/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+    });
+  }
+
+  function resendVerification(email: string) {
+    return api<GenericSuccessResponse>('/auth/resend-verification', {
       method: 'POST',
       body: { email },
     });
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       forgotPassword,
+      resendVerification,
       continueWithGoogle,
     }),
     [ready, user],

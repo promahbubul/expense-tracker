@@ -31,6 +31,11 @@ export class ForgotPasswordDto {
   email!: string;
 }
 
+export class ResendVerificationDto {
+  @IsEmail()
+  email!: string;
+}
+
 export class VerifyEmailDto {
   @IsString()
   @IsNotEmpty()
